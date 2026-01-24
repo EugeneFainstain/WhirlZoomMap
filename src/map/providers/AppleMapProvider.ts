@@ -158,6 +158,13 @@ export class AppleMapProvider implements MapProvider {
     };
   }
 
+  setNativeInteractionsEnabled(enabled: boolean): void {
+    if (!this.map) return;
+    this.map.isScrollEnabled = enabled;
+    this.map.isZoomEnabled = enabled;
+    this.map.isRotateEnabled = enabled;
+  }
+
   destroy(): void {
     if (this.map) {
       this.map.destroy();

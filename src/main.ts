@@ -28,6 +28,21 @@ async function main() {
   const mapControls = new MapControls(controlsContainer, mapProvider);
   const searchBar = new SearchBar(searchContainer, mapProvider);
 
+  // Native mode toggle
+  const nativeCheckbox = document.getElementById('native-toggle-checkbox') as HTMLInputElement;
+  nativeCheckbox.addEventListener('change', () => {
+    const useNative = nativeCheckbox.checked;
+    if (useNative) {
+      interactionElement.style.pointerEvents = 'none';
+      mapContainer.style.pointerEvents = 'all';
+      mapProvider.setNativeInteractionsEnabled(true);
+    } else {
+      interactionElement.style.pointerEvents = 'all';
+      mapContainer.style.pointerEvents = 'none';
+      mapProvider.setNativeInteractionsEnabled(false);
+    }
+  });
+
   // Expose for debugging in dev
   if (import.meta.env.DEV) {
     (window as any).__whirlZoomMap = {

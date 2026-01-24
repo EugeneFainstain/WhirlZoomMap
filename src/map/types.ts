@@ -27,6 +27,7 @@ export interface MapProvider {
   panBy(dx: number, dy: number): void;
   zoomAtPoint(x: number, y: number, zoomDelta: number): void;
   getBounds(): MapBounds;
+  setNativeInteractionsEnabled(enabled: boolean): void;
   destroy(): void;
 }
 
