@@ -63,21 +63,44 @@ export class PassThroughHandler implements InteractionHandler {
     const now = performance.now();
 
     if (this.pointers.size === 1) {
-      // Single pointer: pan
-      const dx = pointer.lastX - e.clientX;
-      const dy = pointer.lastY - e.clientY;
-      mapProvider.panBy(dx, dy);
+      // Single pointer: drag with zoom based on signed area
 
-      // Add point to visualizer
+      // Add point to visualizer first
       if (this.visualizer) {
         this.visualizer.addPoint(e.clientX, e.clientY);
       }
 
+      // Calculate time delta in seconds
+      const dt = (now - pointer.lastTime) / 1000;
+
+      // Get signed area and calculate zoom rate
+      let zoomDelta = 0;
+      if (this.visualizer && dt > 0) {
+        const signedArea = this.visualizer.getSignedArea();
+        // Convert area to zoom rate (adjust this scaling factor as needed)
+        const zoomRatePerPixelSquaredPerSecond = 0.00001;
+        const zoomRate = signedArea * zoomRatePerPixelSquaredPerSecond;
+        zoomDelta = zoomRate * dt;
+      }
+
+      // First, pan to keep the point under the old cursor position under the new cursor position
+      const dx = pointer.lastX - e.clientX;
+      const dy = pointer.lastY - e.clientY;
+      mapProvider.panBy(dx, dy);
+
+      // Then apply zoom at the current cursor position
+      // This keeps the geographic point under the cursor fixed while zooming
+      if (Math.abs(zoomDelta) > 0.0001) {
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        mapProvider.zoomAtPoint(x, y, zoomDelta);
+      }
+
       // Track velocity for inertia
-      const dt = now - pointer.lastTime;
       if (dt > 0) {
-        const vx = (e.clientX - pointer.lastX) / dt;
-        const vy = (e.clientY - pointer.lastY) / dt;
+        const vx = (e.clientX - pointer.lastX) / (dt * 1000);
+        const vy = (e.clientY - pointer.lastY) / (dt * 1000);
         this.velocitySamples.push({ vx, vy, time: now });
         // Keep only recent samples
         if (this.velocitySamples.length > this.maxVelocitySamples) {

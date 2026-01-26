@@ -133,6 +133,25 @@ export class TrailVisualizer {
     }
   }
 
+  getSignedArea(): number {
+    const currentPoint = this.dragPoint || this.virtualTouchPoint;
+    let totalSignedArea = 0;
+
+    if (currentPoint && this.trail.length >= 2) {
+      for (let i = 0; i < this.trail.length - 1; i++) {
+        const p1 = this.trail[i];
+        const p2 = this.trail[i + 1];
+        const p3 = currentPoint;
+
+        // Calculate signed area using cross product
+        const signedArea = 0.5 * ((p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y));
+        totalSignedArea += signedArea;
+      }
+    }
+
+    return totalSignedArea;
+  }
+
   private draw(): void {
     // Clear the canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -153,7 +172,7 @@ export class TrailVisualizer {
     const currentPoint = this.dragPoint || this.virtualTouchPoint;
 
     // Draw triangles from adjacent trail points to the current point
-    let totalSignedArea = 0;
+    const totalSignedArea = this.getSignedArea();
     if (currentPoint && this.trail.length >= 2) {
       for (let i = 0; i < this.trail.length - 1; i++) {
         const p1 = this.trail[i];
@@ -163,7 +182,6 @@ export class TrailVisualizer {
         // Calculate signed area using cross product
         // Signed area = 0.5 * ((x2-x1)*(y3-y1) - (x3-x1)*(y2-y1))
         const signedArea = 0.5 * ((p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y));
-        totalSignedArea += signedArea;
 
         // Choose color based on signed area
         // Positive (counterclockwise) = red, Negative (clockwise) = blue
