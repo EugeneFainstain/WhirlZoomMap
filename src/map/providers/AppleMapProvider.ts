@@ -118,25 +118,38 @@ export class AppleMapProvider implements MapProvider {
 
     const containerWidth = this.container.clientWidth;
     const containerHeight = this.container.clientHeight;
-    const center = this.map.center;
-    const span = this.map.region.span;
+    const rect = this.container.getBoundingClientRect();
 
-    // Calculate the coordinate at the pointer position
-    const offsetX = (x - containerWidth / 2) / containerWidth;
-    const offsetY = (containerHeight / 2 - y) / containerHeight;
+    // Get the geographic coordinate at the cursor using MapKit's conversion
+    const cursorPageX = rect.left + x;
+    const cursorPageY = rect.top + y;
+    const cursorPoint = new DOMPoint(cursorPageX, cursorPageY);
+    const cursorCoord = this.map.convertPointOnPageToCoordinate(cursorPoint);
 
-    const pointLat = center.latitude + offsetY * span.latitudeDelta;
-    const pointLng = center.longitude + offsetX * span.longitudeDelta;
+    // Get the geographic coordinate at the center
+    const centerPageX = rect.left + containerWidth / 2;
+    const centerPageY = rect.top + containerHeight / 2;
+    const centerPoint = new DOMPoint(centerPageX, centerPageY);
+    const centerCoord = this.map.convertPointOnPageToCoordinate(centerPoint);
 
-    // Apply zoom
+    // Calculate the geographic offset from center to cursor
+    const geoOffsetLat = cursorCoord.latitude - centerCoord.latitude;
+    const geoOffsetLng = cursorCoord.longitude - centerCoord.longitude;
+
+    // Calculate the old and new spans
+    const oldSpan = this.map.region.span.latitudeDelta; // Assuming square span
     const currentZoom = this.getZoom();
     const newZoom = Math.max(1, Math.min(20, currentZoom + zoomDelta));
     const newSpan = 360 / Math.pow(2, newZoom);
 
-    // Adjust center so that the point under the cursor stays fixed
-    const scale = newSpan / (span.latitudeDelta);
-    const newCenterLat = pointLat - offsetY * newSpan;
-    const newCenterLng = pointLng - offsetX * newSpan;
+    // Scale the geographic offset proportionally to the zoom change
+    const zoomRatio = newSpan / oldSpan;
+    const newGeoOffsetLat = geoOffsetLat * zoomRatio;
+    const newGeoOffsetLng = geoOffsetLng * zoomRatio;
+
+    // New center = cursor coordinate - new offset
+    const newCenterLat = cursorCoord.latitude - newGeoOffsetLat;
+    const newCenterLng = cursorCoord.longitude - newGeoOffsetLng;
 
     const region = new mapkit.CoordinateRegion(
       new mapkit.Coordinate(newCenterLat, newCenterLng),

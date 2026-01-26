@@ -125,10 +125,8 @@ export class PassThroughHandler implements InteractionHandler {
   onWheel(e: WheelEvent, mapProvider: MapProvider): void {
     // Normalize wheel delta to a zoom increment
     const zoomDelta = -e.deltaY * 0.002;
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    mapProvider.zoomAtPoint(x, y, zoomDelta);
+    // Use offsetX/offsetY which are already relative to the target element
+    mapProvider.zoomAtPoint(e.offsetX, e.offsetY, zoomDelta);
   }
 
   private handlePinchAndRotate(e: PointerEvent, mapProvider: MapProvider): void {
@@ -156,6 +154,7 @@ export class PassThroughHandler implements InteractionHandler {
       // Zoom based on distance change
       const scale = distance / this.lastPinchDistance;
       const zoomDelta = (scale - 1) * 2;
+      // Convert from client coordinates to element-relative coordinates
       const rect = (e.target as HTMLElement).getBoundingClientRect();
       mapProvider.zoomAtPoint(centerX - rect.left, centerY - rect.top, zoomDelta);
     }
