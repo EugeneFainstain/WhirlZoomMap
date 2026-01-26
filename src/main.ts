@@ -4,12 +4,14 @@ import { InteractionLayer } from './interaction/InteractionLayer';
 import { PassThroughHandler } from './interaction/handlers/PassThroughHandler';
 import { MapControls } from './ui/MapControls';
 import { SearchBar } from './ui/SearchBar';
+import { TrailVisualizer } from './visualization/TrailVisualizer';
 
 async function main() {
   const mapContainer = document.getElementById('map-container')!;
   const interactionElement = document.getElementById('interaction-layer')!;
   const controlsContainer = document.getElementById('map-controls-container')!;
   const searchContainer = document.getElementById('search-bar-container')!;
+  const visualizationCanvas = document.getElementById('visualization-canvas') as HTMLCanvasElement;
 
   // Create and initialize the map provider
   const mapProvider = createMapProvider('apple');
@@ -20,8 +22,12 @@ async function main() {
     rotation: config.defaults.rotation,
   });
 
+  // Set up visualization
+  const trailVisualizer = new TrailVisualizer(visualizationCanvas);
+
   // Set up the interaction layer with pass-through handler
   const handler = new PassThroughHandler();
+  handler.setVisualizer(trailVisualizer);
   const interactionLayer = new InteractionLayer(interactionElement, handler, mapProvider);
 
   // Set up UI
@@ -47,8 +53,7 @@ async function main() {
   const visualizeCheckbox = document.getElementById('visualize-toggle-checkbox') as HTMLInputElement;
   visualizeCheckbox.addEventListener('change', () => {
     const visualize = visualizeCheckbox.checked;
-    // TODO: Implement debug visualization logic
-    console.log('Visualize mode:', visualize);
+    trailVisualizer.setEnabled(visualize);
   });
 
   // Expose for debugging in dev
@@ -58,6 +63,7 @@ async function main() {
       interactionLayer,
       mapControls,
       searchBar,
+      trailVisualizer,
     };
   }
 }

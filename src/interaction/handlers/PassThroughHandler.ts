@@ -1,5 +1,6 @@
 import { MapProvider } from '../../map/types';
 import { InteractionHandler } from '../types';
+import { TrailVisualizer } from '../../visualization/TrailVisualizer';
 
 interface PointerState {
   pointerId: number;
@@ -20,6 +21,7 @@ export class PassThroughHandler implements InteractionHandler {
   private pointers: Map<number, PointerState> = new Map();
   private lastPinchDistance: number | null = null;
   private lastPinchAngle: number | null = null;
+  private visualizer: TrailVisualizer | null = null;
 
   // Inertia state
   private velocitySamples: VelocitySample[] = [];
@@ -27,6 +29,10 @@ export class PassThroughHandler implements InteractionHandler {
   private inertiaAnimationId: number | null = null;
   private readonly friction = 0.95; // Deceleration factor per frame
   private readonly minVelocity = 0.5; // Stop when velocity drops below this
+
+  setVisualizer(visualizer: TrailVisualizer | null): void {
+    this.visualizer = visualizer;
+  }
 
   onPointerDown(e: PointerEvent, _mapProvider: MapProvider): void {
     // Stop any ongoing inertia animation
@@ -41,6 +47,11 @@ export class PassThroughHandler implements InteractionHandler {
       lastY: e.clientY,
       lastTime: performance.now(),
     });
+
+    // Add initial point to visualizer
+    if (this.visualizer && this.pointers.size === 1) {
+      this.visualizer.addPoint(e.clientX, e.clientY);
+    }
   }
 
   onPointerMove(e: PointerEvent, mapProvider: MapProvider): void {
@@ -54,6 +65,11 @@ export class PassThroughHandler implements InteractionHandler {
       const dx = pointer.lastX - e.clientX;
       const dy = pointer.lastY - e.clientY;
       mapProvider.panBy(dx, dy);
+
+      // Add point to visualizer
+      if (this.visualizer) {
+        this.visualizer.addPoint(e.clientX, e.clientY);
+      }
 
       // Track velocity for inertia
       const dt = now - pointer.lastTime;
@@ -83,6 +99,11 @@ export class PassThroughHandler implements InteractionHandler {
     if (this.pointers.size < 2) {
       this.lastPinchDistance = null;
       this.lastPinchAngle = null;
+    }
+
+    // Clear visualizer trail when all pointers are released
+    if (this.pointers.size === 0 && this.visualizer) {
+      this.visualizer.clear();
     }
 
     // Start inertia only if we were single-finger panning and now have no pointers

@@ -38,6 +38,14 @@ html, body {
   cursor: grabbing;
 }
 
+/* Visualization canvas sits on top of the interaction layer */
+#visualization-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+}
+
 /* UI overlay sits on top of the interaction layer */
 #ui-overlay {
   position: absolute;
