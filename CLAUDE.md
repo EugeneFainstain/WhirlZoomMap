@@ -58,7 +58,3 @@ Using a static domain-restricted token from the Apple Developer portal (no backe
 2. Add the type to `MapProviderType` in `src/map/types.ts`
 3. Add a case in `MapProviderFactory.ts`
 4. Change the provider type in `src/main.ts`
-
-## Working Preferences
-- Minimize parallel tool calls to avoid API concurrency errors (400 due to tool use concurrency issues)
-- Prefer sequential operations when there are dependencies between calls

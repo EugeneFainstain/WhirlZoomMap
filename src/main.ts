@@ -43,6 +43,14 @@ async function main() {
     }
   });
 
+  // Visualize toggle
+  const visualizeCheckbox = document.getElementById('visualize-toggle-checkbox') as HTMLInputElement;
+  visualizeCheckbox.addEventListener('change', () => {
+    const visualize = visualizeCheckbox.checked;
+    // TODO: Implement debug visualization logic
+    console.log('Visualize mode:', visualize);
+  });
+
   // Expose for debugging in dev
   if (import.meta.env.DEV) {
     (window as any).__whirlZoomMap = {
