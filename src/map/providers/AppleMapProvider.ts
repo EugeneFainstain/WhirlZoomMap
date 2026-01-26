@@ -107,16 +107,17 @@ export class AppleMapProvider implements MapProvider {
     const lngPerPixel = span.longitudeDelta / containerWidth;
     const latPerPixel = span.latitudeDelta / containerHeight;
 
-    const newLat = center.latitude - dy * latPerPixel;
-    const newLng = center.longitude + dx * lngPerPixel;
+    let newLat = center.latitude - dy * latPerPixel;
+    let newLng = center.longitude + dx * lngPerPixel;
 
-    // Use setRegionAnimated instead of setCenterAnimated
-    // This seems to work better at minimal zoom levels
-    const region = new mapkit.CoordinateRegion(
-      new mapkit.Coordinate(newLat, newLng),
-      new mapkit.CoordinateSpan(span.latitudeDelta, span.longitudeDelta)
-    );
-    this.map.setRegionAnimated(region, false);
+    // Normalize longitude to -180 to 180 range
+    while (newLng > 180) newLng -= 360;
+    while (newLng < -180) newLng += 360;
+
+    // Clamp latitude to -85 to 85 range (Web Mercator limits)
+    newLat = Math.max(-85, Math.min(85, newLat));
+
+    this.map.setCenterAnimated(new mapkit.Coordinate(newLat, newLng), false);
   }
 
   zoomAtPoint(x: number, y: number, zoomDelta: number): void {
@@ -130,21 +131,46 @@ export class AppleMapProvider implements MapProvider {
     const cursorPoint = new DOMPoint(cursorPageX, cursorPageY);
     const targetCoord = this.map.convertPointOnPageToCoordinate(cursorPoint);
 
-    // Step 2: Apply zoom (this may get clamped at min/max)
+    // Step 2: Apply zoom at equator to avoid latitude-dependent zoom restrictions
     const oldZoom = this.getZoom();
-    const newZoom = Math.max(1, Math.min(20, oldZoom + zoomDelta));
-    const newSpan = 360 / Math.pow(2, newZoom);
+    const originalCenter = this.map.center;
 
-    // Set the new zoom level without changing center
-    const currentCenter = this.map.center;
-    const region = new mapkit.CoordinateRegion(
-      currentCenter,
+    // Step 2a: Pan to equator
+    this.map.setCenterAnimated(new mapkit.Coordinate(0, originalCenter.longitude), false);
+
+    // Step 2b: Read the actual zoom level at equator (panning might have changed it)
+    const zoomAtEquator = this.getZoom();
+
+    // Step 2c: Calculate new zoom with delta
+    const requestedZoom = Math.max(1, Math.min(20, zoomAtEquator + zoomDelta));
+    let newSpan = 360 / Math.pow(2, requestedZoom);
+
+    // Step 2d: Apply zoom change at equator
+    let equatorZoomRegion = new mapkit.CoordinateRegion(
+      new mapkit.Coordinate(0, originalCenter.longitude),
       new mapkit.CoordinateSpan(newSpan, newSpan)
     );
-    this.map.setRegionAnimated(region, false);
+    this.map.setRegionAnimated(equatorZoomRegion, false);
+
+    // Step 2e: Read zoom again - if MapKit clamped it when zooming out, add epsilon
+    const actualZoomAtEquator = this.getZoom();
+    if (zoomDelta < 0 && Math.abs(actualZoomAtEquator - requestedZoom) > 0.001) {
+      // MapKit clamped our zoom out request - add epsilon to stay away from limit
+      const adjustedZoom = actualZoomAtEquator + 0.0001;
+      newSpan = 360 / Math.pow(2, adjustedZoom);
+      equatorZoomRegion = new mapkit.CoordinateRegion(
+        new mapkit.Coordinate(0, originalCenter.longitude),
+        new mapkit.CoordinateSpan(newSpan, newSpan)
+      );
+      this.map.setRegionAnimated(equatorZoomRegion, false);
+    }
+
+    // Step 2f: Pan back to original location
+    this.map.setCenterAnimated(originalCenter, false);
 
     // Check if zoom actually changed (compare before and after)
     const actualZoom = this.getZoom();
+
     if (Math.abs(actualZoom - oldZoom) < 0.001) {
       // Zoom was clamped and didn't change, so don't do compensating pan
       // (otherwise we'd undo the pan that was done before calling this method)
