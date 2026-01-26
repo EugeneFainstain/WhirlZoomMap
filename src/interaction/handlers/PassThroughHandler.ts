@@ -36,6 +36,9 @@ export class PassThroughHandler implements InteractionHandler {
   // Pinch gesture throttling - only process once per frame
   private pinchScheduled = false;
 
+  // Track the centroid of two-finger gestures for panning
+  private lastTwoFingerCentroid: { x: number; y: number } | null = null;
+
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
   }
@@ -98,6 +101,7 @@ export class PassThroughHandler implements InteractionHandler {
     if (this.pointers.size === 2) {
       this.lastPinchDistance = null;
       this.lastPinchAngle = null;
+      this.lastTwoFingerCentroid = null;
     }
 
     // For single pointer drag, remember the geographic coordinate under the cursor
@@ -189,6 +193,7 @@ export class PassThroughHandler implements InteractionHandler {
     if (this.pointers.size < 2) {
       this.lastPinchDistance = null;
       this.lastPinchAngle = null;
+      this.lastTwoFingerCentroid = null;
     }
 
     // Clear drag anchor when all pointers are released
@@ -249,6 +254,16 @@ export class PassThroughHandler implements InteractionHandler {
     const centerX = (p1.lastX + p2.lastX) / 2;
     const centerY = (p1.lastY + p2.lastY) / 2;
 
+    // Two-finger panning: track centroid movement
+    if (this.lastTwoFingerCentroid !== null) {
+      const panDx = centerX - this.lastTwoFingerCentroid.x;
+      const panDy = centerY - this.lastTwoFingerCentroid.y;
+
+      // Apply pan
+      mapProvider.panBy(-panDx, -panDy);
+    }
+
+    // Pinch zoom
     if (this.lastPinchDistance !== null && distance > 0) {
       // Zoom based on distance change
       const scale = distance / this.lastPinchDistance;
@@ -259,13 +274,14 @@ export class PassThroughHandler implements InteractionHandler {
       mapProvider.zoomAtPoint(centerX - rect.left, centerY - rect.top, zoomDelta);
     }
 
+    // Rotation
     if (this.lastPinchAngle !== null) {
-      // Rotation
       const angleDelta = angle - this.lastPinchAngle;
       const currentRotation = mapProvider.getRotation();
       mapProvider.setRotation(currentRotation + angleDelta, false);
     }
 
+    this.lastTwoFingerCentroid = { x: centerX, y: centerY };
     this.lastPinchDistance = distance;
     this.lastPinchAngle = angle;
   }
