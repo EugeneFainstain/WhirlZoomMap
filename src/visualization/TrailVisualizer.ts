@@ -144,6 +144,31 @@ export class TrailVisualizer {
     // Remove old points from trail
     this.trail = this.trail.filter(point => now - point.timestamp <= this.trailDuration);
 
+    // Check if virtual touch point has expired
+    if (this.virtualTouchPoint && now - this.virtualTouchPoint.timestamp > this.virtualTouchDuration) {
+      this.virtualTouchPoint = null;
+    }
+
+    // Get the current point (drag point or virtual touch point)
+    const currentPoint = this.dragPoint || this.virtualTouchPoint;
+
+    // Draw thin blue lines from each trail point to the current point
+    if (currentPoint && this.trail.length > 0) {
+      this.ctx.strokeStyle = 'rgba(0, 100, 255, 0.4)';
+      this.ctx.lineWidth = 1;
+
+      for (const point of this.trail) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(point.x, point.y);
+        this.ctx.lineTo(currentPoint.x, currentPoint.y);
+        this.ctx.stroke();
+      }
+
+      // Restore original style for the trail
+      this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+      this.ctx.lineWidth = 3;
+    }
+
     // Draw the trail
     if (this.trail.length >= 2) {
       this.ctx.beginPath();
@@ -156,16 +181,10 @@ export class TrailVisualizer {
       this.ctx.stroke();
     }
 
-    // Check if virtual touch point has expired
-    if (this.virtualTouchPoint && now - this.virtualTouchPoint.timestamp > this.virtualTouchDuration) {
-      this.virtualTouchPoint = null;
-    }
-
     // Draw the circle at drag point or virtual touch point
-    const circlePoint = this.dragPoint || this.virtualTouchPoint;
-    if (circlePoint) {
+    if (currentPoint) {
       this.ctx.beginPath();
-      this.ctx.arc(circlePoint.x, circlePoint.y, this.circleRadius, 0, Math.PI * 2);
+      this.ctx.arc(currentPoint.x, currentPoint.y, this.circleRadius, 0, Math.PI * 2);
       this.ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
       this.ctx.fill();
     }
