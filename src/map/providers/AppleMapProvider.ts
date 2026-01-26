@@ -141,14 +141,19 @@ export class AppleMapProvider implements MapProvider {
     // Step 2b: Read the actual zoom level at equator (panning might have changed it)
     const zoomAtEquator = this.getZoom();
 
+    // Get current span to preserve aspect ratio
+    const currentSpan = this.map.region.span;
+    const aspectRatio = currentSpan.longitudeDelta / currentSpan.latitudeDelta;
+
     // Step 2c: Calculate new zoom with delta
     const requestedZoom = Math.max(1, Math.min(20, zoomAtEquator + zoomDelta));
-    let newSpan = 360 / Math.pow(2, requestedZoom);
+    const newLatSpan = 360 / Math.pow(2, requestedZoom);
+    const newLngSpan = newLatSpan * aspectRatio;
 
     // Step 2d: Apply zoom change at equator
     let equatorZoomRegion = new mapkit.CoordinateRegion(
       new mapkit.Coordinate(0, originalCenter.longitude),
-      new mapkit.CoordinateSpan(newSpan, newSpan)
+      new mapkit.CoordinateSpan(newLatSpan, newLngSpan)
     );
     this.map.setRegionAnimated(equatorZoomRegion, false);
 
@@ -157,10 +162,11 @@ export class AppleMapProvider implements MapProvider {
     if (zoomDelta < 0 && Math.abs(actualZoomAtEquator - requestedZoom) > 0.001) {
       // MapKit clamped our zoom out request - add epsilon to stay away from limit
       const adjustedZoom = actualZoomAtEquator + 0.0001;
-      newSpan = 360 / Math.pow(2, adjustedZoom);
+      const adjLatSpan = 360 / Math.pow(2, adjustedZoom);
+      const adjLngSpan = adjLatSpan * aspectRatio;
       equatorZoomRegion = new mapkit.CoordinateRegion(
         new mapkit.Coordinate(0, originalCenter.longitude),
-        new mapkit.CoordinateSpan(newSpan, newSpan)
+        new mapkit.CoordinateSpan(adjLatSpan, adjLngSpan)
       );
       this.map.setRegionAnimated(equatorZoomRegion, false);
     }

@@ -33,6 +33,9 @@ export class PassThroughHandler implements InteractionHandler {
   private readonly friction = 0.95; // Deceleration factor per frame
   private readonly minVelocity = 0.5; // Stop when velocity drops below this
 
+  // Pinch gesture throttling - only process once per frame
+  private pinchScheduled = false;
+
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
   }
@@ -89,6 +92,13 @@ export class PassThroughHandler implements InteractionHandler {
       lastY: e.clientY,
       lastTime: performance.now(),
     });
+
+    // Reset pinch state when transitioning to 2 fingers
+    // This prevents tiny movements during tap from causing zoom
+    if (this.pointers.size === 2) {
+      this.lastPinchDistance = null;
+      this.lastPinchAngle = null;
+    }
 
     // For single pointer drag, remember the geographic coordinate under the cursor
     if (this.pointers.size === 1) {
@@ -156,14 +166,19 @@ export class PassThroughHandler implements InteractionHandler {
           this.velocitySamples.shift();
         }
       }
-    } else if (this.pointers.size === 2) {
-      // Two pointers: pinch zoom + rotate
-      this.handlePinchAndRotate(e, mapProvider);
     }
 
+    // Update pointer position BEFORE handling multi-touch gestures
+    // This ensures pinch calculations use current positions, not stale ones
     pointer.lastX = e.clientX;
     pointer.lastY = e.clientY;
     pointer.lastTime = now;
+
+    // Handle two-finger gestures with updated positions
+    if (this.pointers.size === 2) {
+      // Two pointers: pinch zoom + rotate
+      this.handlePinchAndRotate(e, mapProvider);
+    }
   }
 
   onPointerUp(e: PointerEvent, mapProvider: MapProvider): void {
@@ -207,13 +222,20 @@ export class PassThroughHandler implements InteractionHandler {
   }
 
   private handlePinchAndRotate(e: PointerEvent, mapProvider: MapProvider): void {
-    // Update the current pointer
-    const pointer = this.pointers.get(e.pointerId);
-    if (pointer) {
-      pointer.lastX = e.clientX;
-      pointer.lastY = e.clientY;
+    // Throttle pinch calculations to once per animation frame
+    // This prevents processing each finger's movement separately
+    if (this.pinchScheduled) {
+      return;
     }
 
+    this.pinchScheduled = true;
+    requestAnimationFrame(() => {
+      this.pinchScheduled = false;
+      this.processPinchAndRotate(mapProvider, e.target as HTMLElement);
+    });
+  }
+
+  private processPinchAndRotate(mapProvider: MapProvider, target: HTMLElement): void {
     // Get both pointers
     const pointerArray = Array.from(this.pointers.values());
     if (pointerArray.length < 2) return;
@@ -227,12 +249,13 @@ export class PassThroughHandler implements InteractionHandler {
     const centerX = (p1.lastX + p2.lastX) / 2;
     const centerY = (p1.lastY + p2.lastY) / 2;
 
-    if (this.lastPinchDistance !== null) {
+    if (this.lastPinchDistance !== null && distance > 0) {
       // Zoom based on distance change
       const scale = distance / this.lastPinchDistance;
       const zoomDelta = (scale - 1) * 2;
+
       // Convert from client coordinates to element-relative coordinates
-      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      const rect = target.getBoundingClientRect();
       mapProvider.zoomAtPoint(centerX - rect.left, centerY - rect.top, zoomDelta);
     }
 
