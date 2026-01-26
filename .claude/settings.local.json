@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git ls-tree:*)",
-      "Bash(git -C \"e:\\\\EUGENE_PRIVATE\\\\WebDraw\" remote -v)"
+      "Bash(git -C \"e:\\\\EUGENE_PRIVATE\\\\WebDraw\" remote -v)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
