@@ -40,7 +40,7 @@ export class TrailVisualizer {
     window.addEventListener('resize', () => this.resizeCanvas());
 
     // Configure drawing style
-    this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+    this.ctx.strokeStyle = 'rgba(70, 70, 70, 0.8)';
     this.ctx.lineWidth = 3;
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
@@ -51,7 +51,7 @@ export class TrailVisualizer {
     this.canvas.height = window.innerHeight;
 
     // Reapply styles after resize
-    this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+    this.ctx.strokeStyle = 'rgba(70, 70, 70, 0.8)';
     this.ctx.lineWidth = 3;
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
@@ -152,21 +152,29 @@ export class TrailVisualizer {
     // Get the current point (drag point or virtual touch point)
     const currentPoint = this.dragPoint || this.virtualTouchPoint;
 
-    // Draw thin blue lines from each trail point to the current point
-    if (currentPoint && this.trail.length > 0) {
-      this.ctx.strokeStyle = 'rgba(0, 100, 255, 0.4)';
-      this.ctx.lineWidth = 1;
+    // Draw triangles from adjacent trail points to the current point
+    if (currentPoint && this.trail.length >= 2) {
+      for (let i = 0; i < this.trail.length - 1; i++) {
+        const p1 = this.trail[i];
+        const p2 = this.trail[i + 1];
+        const p3 = currentPoint;
 
-      for (const point of this.trail) {
+        // Calculate signed area using cross product
+        // Signed area = 0.5 * ((x2-x1)*(y3-y1) - (x3-x1)*(y2-y1))
+        const signedArea = 0.5 * ((p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y));
+
+        // Choose color based on signed area
+        // Positive (counterclockwise) = red, Negative (clockwise) = blue
+        this.ctx.fillStyle = signedArea > 0 ? 'rgba(255, 0, 0, 0.4)' : 'rgba(0, 100, 255, 0.4)';
+
+        // Draw filled triangle
         this.ctx.beginPath();
-        this.ctx.moveTo(point.x, point.y);
-        this.ctx.lineTo(currentPoint.x, currentPoint.y);
-        this.ctx.stroke();
+        this.ctx.moveTo(p1.x, p1.y);
+        this.ctx.lineTo(p2.x, p2.y);
+        this.ctx.lineTo(p3.x, p3.y);
+        this.ctx.closePath();
+        this.ctx.fill();
       }
-
-      // Restore original style for the trail
-      this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-      this.ctx.lineWidth = 3;
     }
 
     // Draw the trail
@@ -185,7 +193,7 @@ export class TrailVisualizer {
     if (currentPoint) {
       this.ctx.beginPath();
       this.ctx.arc(currentPoint.x, currentPoint.y, this.circleRadius, 0, Math.PI * 2);
-      this.ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+      this.ctx.fillStyle = 'rgba(70, 70, 70, 0.8)';
       this.ctx.fill();
     }
   }
