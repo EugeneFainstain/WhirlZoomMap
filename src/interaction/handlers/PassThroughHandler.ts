@@ -48,8 +48,10 @@ export class PassThroughHandler implements InteractionHandler {
       lastTime: performance.now(),
     });
 
-    // Add initial point to visualizer
+    // Add initial point to visualizer and clear any virtual touch point
     if (this.visualizer && this.pointers.size === 1) {
+      this.visualizer.clearVirtualTouchPoint();
+      this.visualizer.clear();
       this.visualizer.addPoint(e.clientX, e.clientY);
     }
   }
@@ -94,6 +96,7 @@ export class PassThroughHandler implements InteractionHandler {
 
   onPointerUp(e: PointerEvent, mapProvider: MapProvider): void {
     const wasSinglePointer = this.pointers.size === 1;
+    const pointer = this.pointers.get(e.pointerId);
     this.pointers.delete(e.pointerId);
 
     if (this.pointers.size < 2) {
@@ -101,8 +104,15 @@ export class PassThroughHandler implements InteractionHandler {
       this.lastPinchAngle = null;
     }
 
-    // Clear visualizer trail when all pointers are released
-    if (this.pointers.size === 0 && this.visualizer) {
+    // When releasing from single-pointer drag
+    if (wasSinglePointer && this.pointers.size === 0 && this.visualizer && pointer) {
+      // Clear the drag point and set virtual touch point at the release position
+      this.visualizer.clearDragPoint();
+      this.visualizer.setVirtualTouchPoint(pointer.lastX, pointer.lastY);
+    }
+
+    // Clear visualizer trail and drag point when all pointers are released (but not during inertia)
+    if (this.pointers.size === 0 && this.visualizer && !wasSinglePointer) {
       this.visualizer.clear();
     }
 
@@ -166,6 +176,11 @@ export class PassThroughHandler implements InteractionHandler {
       cancelAnimationFrame(this.inertiaAnimationId);
       this.inertiaAnimationId = null;
     }
+
+    // Clear virtual touch point when inertia stops
+    if (this.visualizer) {
+      this.visualizer.clearVirtualTouchPoint();
+    }
   }
 
   private startInertia(mapProvider: MapProvider): void {
@@ -223,6 +238,11 @@ export class PassThroughHandler implements InteractionHandler {
       // Apply velocity (negative because panBy moves the map opposite to finger direction)
       mapProvider.panBy(-vx, -vy);
 
+      // Update virtual touch point to follow the map movement
+      if (this.visualizer) {
+        this.visualizer.updateVirtualTouchPoint(-vx, -vy);
+      }
+
       // Apply friction
       vx *= this.friction;
       vy *= this.friction;
@@ -233,6 +253,7 @@ export class PassThroughHandler implements InteractionHandler {
         this.inertiaAnimationId = requestAnimationFrame(animate);
       } else {
         this.inertiaAnimationId = null;
+        // Don't clear virtual touch point here - let it persist for 2 seconds
       }
     };
 
