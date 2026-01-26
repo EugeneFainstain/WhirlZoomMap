@@ -195,7 +195,8 @@ export class TrailVisualizer {
 
     // Draw area circle - radius proportional to total signed area
     if (currentPoint && totalSignedArea !== 0) {
-      const radius = Math.sqrt(Math.abs(totalSignedArea)) * 0.5;
+      const radius = Math.sqrt(Math.abs(totalSignedArea)) * 0.5; // Circle AREA is proportional to covered AREA
+      //const radius = Math.abs(totalSignedArea) * 0.01; // Circle RADIUS is proportional to covered AREA
       const color = totalSignedArea > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
 
       this.ctx.strokeStyle = color;
