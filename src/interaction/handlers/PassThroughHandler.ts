@@ -141,9 +141,15 @@ export class PassThroughHandler implements InteractionHandler {
       let zoomDelta = 0;
       if (this.visualizer && dt > 0) {
         const signedArea = this.visualizer.getSignedArea();
-        // Convert area to zoom rate (adjust this scaling factor as needed)
-        const zoomRatePerPixelSquaredPerSecond = 0.0001; // 10x faster
-        const zoomRate = signedArea * zoomRatePerPixelSquaredPerSecond;
+
+        // Normalize by sqrt(area) vs minimal viewport dimension
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        const minViewportDimension = Math.min(rect.width, rect.height);
+        const normalizedValue = Math.sqrt(Math.abs(signedArea)) / minViewportDimension * Math.sign(signedArea);
+
+        // Convert normalized value to zoom rate
+        const zoomRatePerNormalizedValuePerSecond = 20; // Adjust this for sensitivity
+        const zoomRate = normalizedValue * zoomRatePerNormalizedValuePerSecond;
         zoomDelta = zoomRate * dt;
       }
 
@@ -265,11 +271,15 @@ export class PassThroughHandler implements InteractionHandler {
 
     // Pinch zoom
     if (this.lastPinchDistance !== null && distance > 0) {
-      const scale = distance / this.lastPinchDistance;
-      const zoomDelta = (scale - 1) * 2;
+      // Normalize zoom delta by viewport diagonal to make sensitivity consistent across devices
+      const rect = target.getBoundingClientRect();
+      const viewportDiagonal = Math.sqrt(rect.width * rect.width + rect.height * rect.height);
+
+      // Scale the zoom delta by how much of the viewport diagonal the gesture represents
+      const normalizedScale = (distance / viewportDiagonal) / (this.lastPinchDistance / viewportDiagonal);
+      const zoomDelta = (normalizedScale - 1) * 2;
 
       // Convert from client coordinates to element-relative coordinates
-      const rect = target.getBoundingClientRect();
       mapProvider.zoomAtPoint(centerX - rect.left, centerY - rect.top, zoomDelta);
     }
 
