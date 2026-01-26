@@ -23,6 +23,9 @@ export class PassThroughHandler implements InteractionHandler {
   private lastPinchAngle: number | null = null;
   private visualizer: TrailVisualizer | null = null;
 
+  // Drag anchor - the geographic coordinate that should stay under the cursor during drag
+  private dragAnchorCoord: { lat: number; lng: number } | null = null;
+
   // Inertia state
   private velocitySamples: VelocitySample[] = [];
   private readonly maxVelocitySamples = 5;
@@ -34,7 +37,46 @@ export class PassThroughHandler implements InteractionHandler {
     this.visualizer = visualizer;
   }
 
-  onPointerDown(e: PointerEvent, _mapProvider: MapProvider): void {
+  private getCoordinateAtScreenPoint(mapProvider: MapProvider, clientX: number, clientY: number): { lat: number; lng: number } | null {
+    // We need to access the underlying map to convert screen coordinates to geographic coordinates
+    // This is a bit of a hack, but we'll cast to AppleMapProvider
+    const provider = mapProvider as any;
+    if (provider.map && provider.container) {
+      // clientX/clientY are already page coordinates (viewport-relative)
+      const domPoint = new DOMPoint(clientX, clientY);
+      const coord = provider.map.convertPointOnPageToCoordinate(domPoint);
+      return { lat: coord.latitude, lng: coord.longitude };
+    }
+    return null;
+  }
+
+  private positionCoordinateAtScreenPoint(
+    mapProvider: MapProvider,
+    coord: { lat: number; lng: number },
+    clientX: number,
+    clientY: number
+  ): void {
+    const provider = mapProvider as any;
+    if (!provider.map || !provider.container) return;
+
+    // clientX/clientY are already page coordinates
+    const targetPageX = clientX;
+    const targetPageY = clientY;
+
+    // Get where this coordinate currently appears on screen
+    const mapkit = (window as any).mapkit;
+    const mapkitCoord = new mapkit.Coordinate(coord.lat, coord.lng);
+    const currentPagePoint = provider.map.convertCoordinateToPointOnPage(mapkitCoord);
+
+    // Calculate how much we need to pan
+    const panPixelsX = currentPagePoint.x - targetPageX;
+    const panPixelsY = currentPagePoint.y - targetPageY;
+
+    // Apply the pan
+    mapProvider.panBy(panPixelsX, panPixelsY);
+  }
+
+  onPointerDown(e: PointerEvent, mapProvider: MapProvider): void {
     // Stop any ongoing inertia animation
     this.stopInertia();
     this.velocitySamples = [];
@@ -47,6 +89,14 @@ export class PassThroughHandler implements InteractionHandler {
       lastY: e.clientY,
       lastTime: performance.now(),
     });
+
+    // For single pointer drag, remember the geographic coordinate under the cursor
+    if (this.pointers.size === 1) {
+      const coord = this.getCoordinateAtScreenPoint(mapProvider, e.clientX, e.clientY);
+      if (coord) {
+        this.dragAnchorCoord = coord;
+      }
+    }
 
     // Add initial point to visualizer and clear any virtual touch point
     if (this.visualizer && this.pointers.size === 1) {
@@ -78,23 +128,22 @@ export class PassThroughHandler implements InteractionHandler {
       if (this.visualizer && dt > 0) {
         const signedArea = this.visualizer.getSignedArea();
         // Convert area to zoom rate (adjust this scaling factor as needed)
-        const zoomRatePerPixelSquaredPerSecond = 0.00001;
+        const zoomRatePerPixelSquaredPerSecond = 0.0001; // 10x faster
         const zoomRate = signedArea * zoomRatePerPixelSquaredPerSecond;
         zoomDelta = zoomRate * dt;
       }
 
-      // First, pan to keep the point under the old cursor position under the new cursor position
-      const dx = pointer.lastX - e.clientX;
-      const dy = pointer.lastY - e.clientY;
-      mapProvider.panBy(dx, dy);
-
-      // Then apply zoom at the current cursor position
-      // This keeps the geographic point under the cursor fixed while zooming
+      // Apply zoom first if needed
       if (Math.abs(zoomDelta) > 0.0001) {
         const rect = (e.target as HTMLElement).getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         mapProvider.zoomAtPoint(x, y, zoomDelta);
+      }
+
+      // Position the drag anchor coordinate at the current cursor position
+      if (this.dragAnchorCoord) {
+        this.positionCoordinateAtScreenPoint(mapProvider, this.dragAnchorCoord, e.clientX, e.clientY);
       }
 
       // Track velocity for inertia
@@ -125,6 +174,11 @@ export class PassThroughHandler implements InteractionHandler {
     if (this.pointers.size < 2) {
       this.lastPinchDistance = null;
       this.lastPinchAngle = null;
+    }
+
+    // Clear drag anchor when all pointers are released
+    if (this.pointers.size === 0) {
+      this.dragAnchorCoord = null;
     }
 
     // When releasing from single-pointer drag

@@ -110,52 +110,57 @@ export class AppleMapProvider implements MapProvider {
     const newLat = center.latitude - dy * latPerPixel;
     const newLng = center.longitude + dx * lngPerPixel;
 
-    this.map.setCenterAnimated(new mapkit.Coordinate(newLat, newLng), false);
+    // Use setRegionAnimated instead of setCenterAnimated
+    // This seems to work better at minimal zoom levels
+    const region = new mapkit.CoordinateRegion(
+      new mapkit.Coordinate(newLat, newLng),
+      new mapkit.CoordinateSpan(span.latitudeDelta, span.longitudeDelta)
+    );
+    this.map.setRegionAnimated(region, false);
   }
 
   zoomAtPoint(x: number, y: number, zoomDelta: number): void {
     if (!this.map || !this.container) return;
 
-    const containerWidth = this.container.clientWidth;
-    const containerHeight = this.container.clientHeight;
     const rect = this.container.getBoundingClientRect();
 
-    // Get the geographic coordinate at the cursor using MapKit's conversion
+    // Step 1: Remember the geographic coordinate under the cursor BEFORE zoom
     const cursorPageX = rect.left + x;
     const cursorPageY = rect.top + y;
     const cursorPoint = new DOMPoint(cursorPageX, cursorPageY);
-    const cursorCoord = this.map.convertPointOnPageToCoordinate(cursorPoint);
+    const targetCoord = this.map.convertPointOnPageToCoordinate(cursorPoint);
 
-    // Get the geographic coordinate at the center
-    const centerPageX = rect.left + containerWidth / 2;
-    const centerPageY = rect.top + containerHeight / 2;
-    const centerPoint = new DOMPoint(centerPageX, centerPageY);
-    const centerCoord = this.map.convertPointOnPageToCoordinate(centerPoint);
-
-    // Calculate the geographic offset from center to cursor
-    const geoOffsetLat = cursorCoord.latitude - centerCoord.latitude;
-    const geoOffsetLng = cursorCoord.longitude - centerCoord.longitude;
-
-    // Calculate the old and new spans
-    const oldSpan = this.map.region.span.latitudeDelta; // Assuming square span
-    const currentZoom = this.getZoom();
-    const newZoom = Math.max(1, Math.min(20, currentZoom + zoomDelta));
+    // Step 2: Apply zoom (this may get clamped at min/max)
+    const oldZoom = this.getZoom();
+    const newZoom = Math.max(1, Math.min(20, oldZoom + zoomDelta));
     const newSpan = 360 / Math.pow(2, newZoom);
 
-    // Scale the geographic offset proportionally to the zoom change
-    const zoomRatio = newSpan / oldSpan;
-    const newGeoOffsetLat = geoOffsetLat * zoomRatio;
-    const newGeoOffsetLng = geoOffsetLng * zoomRatio;
-
-    // New center = cursor coordinate - new offset
-    const newCenterLat = cursorCoord.latitude - newGeoOffsetLat;
-    const newCenterLng = cursorCoord.longitude - newGeoOffsetLng;
-
+    // Set the new zoom level without changing center
+    const currentCenter = this.map.center;
     const region = new mapkit.CoordinateRegion(
-      new mapkit.Coordinate(newCenterLat, newCenterLng),
+      currentCenter,
       new mapkit.CoordinateSpan(newSpan, newSpan)
     );
     this.map.setRegionAnimated(region, false);
+
+    // Check if zoom actually changed (compare before and after)
+    const actualZoom = this.getZoom();
+    if (Math.abs(actualZoom - oldZoom) < 0.001) {
+      // Zoom was clamped and didn't change, so don't do compensating pan
+      // (otherwise we'd undo the pan that was done before calling this method)
+      return;
+    }
+
+    // Step 3: Pan so that the target coordinate is back under the cursor
+    // Get where the target coordinate is now displayed after zoom
+    const targetPagePoint = this.map.convertCoordinateToPointOnPage(targetCoord);
+
+    // Calculate how many pixels we need to pan
+    const panPixelsX = targetPagePoint.x - cursorPageX;
+    const panPixelsY = targetPagePoint.y - cursorPageY;
+
+    // Apply the pan
+    this.panBy(panPixelsX, panPixelsY);
   }
 
   getBounds(): MapBounds {
