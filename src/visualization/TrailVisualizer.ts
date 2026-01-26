@@ -153,6 +153,7 @@ export class TrailVisualizer {
     const currentPoint = this.dragPoint || this.virtualTouchPoint;
 
     // Draw triangles from adjacent trail points to the current point
+    let totalSignedArea = 0;
     if (currentPoint && this.trail.length >= 2) {
       for (let i = 0; i < this.trail.length - 1; i++) {
         const p1 = this.trail[i];
@@ -162,6 +163,7 @@ export class TrailVisualizer {
         // Calculate signed area using cross product
         // Signed area = 0.5 * ((x2-x1)*(y3-y1) - (x3-x1)*(y2-y1))
         const signedArea = 0.5 * ((p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y));
+        totalSignedArea += signedArea;
 
         // Choose color based on signed area
         // Positive (counterclockwise) = red, Negative (clockwise) = blue
@@ -179,6 +181,8 @@ export class TrailVisualizer {
 
     // Draw the trail
     if (this.trail.length >= 2) {
+      this.ctx.strokeStyle = 'rgba(70, 70, 70, 0.8)';
+      this.ctx.lineWidth = 3;
       this.ctx.beginPath();
       this.ctx.moveTo(this.trail[0].x, this.trail[0].y);
 
@@ -186,6 +190,18 @@ export class TrailVisualizer {
         this.ctx.lineTo(this.trail[i].x, this.trail[i].y);
       }
 
+      this.ctx.stroke();
+    }
+
+    // Draw area circle - radius proportional to total signed area
+    if (currentPoint && totalSignedArea !== 0) {
+      const radius = Math.sqrt(Math.abs(totalSignedArea)) * 0.5;
+      const color = totalSignedArea > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
+
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(currentPoint.x, currentPoint.y, radius, 0, Math.PI * 2);
       this.ctx.stroke();
     }
 
