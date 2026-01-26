@@ -265,7 +265,6 @@ export class PassThroughHandler implements InteractionHandler {
 
     // Pinch zoom
     if (this.lastPinchDistance !== null && distance > 0) {
-      // Zoom based on distance change
       const scale = distance / this.lastPinchDistance;
       const zoomDelta = (scale - 1) * 2;
 

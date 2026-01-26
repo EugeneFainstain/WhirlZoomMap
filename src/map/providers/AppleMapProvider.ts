@@ -134,6 +134,7 @@ export class AppleMapProvider implements MapProvider {
     // Step 2: Apply zoom at equator to avoid latitude-dependent zoom restrictions
     const oldZoom = this.getZoom();
     const originalCenter = this.map.center;
+    const originalRotation = this.getRotation(); // Save rotation before equator workaround
 
     // Step 2a: Pan to equator
     this.map.setCenterAnimated(new mapkit.Coordinate(0, originalCenter.longitude), false);
@@ -173,6 +174,9 @@ export class AppleMapProvider implements MapProvider {
 
     // Step 2f: Pan back to original location
     this.map.setCenterAnimated(originalCenter, false);
+
+    // Restore rotation (panning may have reset it)
+    this.setRotation(originalRotation, false);
 
     // Check if zoom actually changed (compare before and after)
     const actualZoom = this.getZoom();
