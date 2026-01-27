@@ -212,15 +212,25 @@ export class TrailVisualizer {
     }
 
     // Draw area circle - radius proportional to total signed area
+    // Position in upper-left corner, aligned with visualize checkbox
     if (currentPoint && totalSignedArea !== 0) {
       const radius = Math.sqrt(Math.abs(totalSignedArea)) * 0.5; // Circle AREA is proportional to covered AREA
       //const radius = Math.abs(totalSignedArea) * 0.01; // Circle RADIUS is proportional to covered AREA
       const color = totalSignedArea > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
 
+      // Get position: horizontally centered, vertically aligned with visualize checkbox
+      const visualizeToggle = document.getElementById('visualize-toggle');
+      const circleX = this.canvas.width / 2;
+      let circleY = 110; // Default fallback
+      if (visualizeToggle) {
+        const rect = visualizeToggle.getBoundingClientRect();
+        circleY = rect.top + rect.height / 2; // Vertically centered with checkbox
+      }
+
       this.ctx.strokeStyle = color;
       this.ctx.lineWidth = 3;
       this.ctx.beginPath();
-      this.ctx.arc(currentPoint.x, currentPoint.y, radius, 0, Math.PI * 2);
+      this.ctx.arc(circleX, circleY, radius, 0, Math.PI * 2);
       this.ctx.stroke();
     }
 
