@@ -72,9 +72,11 @@ export class TrailVisualizer {
   }
 
   addPoint(x: number, y: number): void {
-    if (!this.enabled) return;
-
     const now = performance.now();
+
+    // Remove old points to keep trail bounded (even when not visualizing)
+    this.trail = this.trail.filter(point => now - point.timestamp <= this.trailDuration);
+
     this.trail.push({ x, y, timestamp: now });
 
     // Update drag point to current position
@@ -86,8 +88,6 @@ export class TrailVisualizer {
   }
 
   setVirtualTouchPoint(x: number, y: number): void {
-    if (!this.enabled) return;
-
     const now = performance.now();
     this.virtualTouchPoint = { x, y, timestamp: now };
   }
