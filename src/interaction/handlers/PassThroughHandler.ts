@@ -39,6 +39,9 @@ export class PassThroughHandler implements InteractionHandler {
   // Track the centroid of two-finger gestures for panning
   private lastTwoFingerCentroid: { x: number; y: number } | null = null;
 
+  // Track if zoom threshold has been crossed during current drag
+  private zoomActivated: boolean = false;
+
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
   }
@@ -106,6 +109,10 @@ export class PassThroughHandler implements InteractionHandler {
 
     // For single pointer drag, remember the geographic coordinate under the cursor
     if (this.pointers.size === 1) {
+      this.zoomActivated = false; // Reset zoom activation for new drag
+      if (this.visualizer) {
+        this.visualizer.setZoomActivated(false);
+      }
       const coord = this.getCoordinateAtScreenPoint(mapProvider, e.clientX, e.clientY);
       if (coord) {
         this.dragAnchorCoord = coord;
@@ -141,16 +148,26 @@ export class PassThroughHandler implements InteractionHandler {
       let zoomDelta = 0;
       if (this.visualizer && dt > 0) {
         const signedArea = this.visualizer.getSignedArea();
+        const threshold = this.visualizer.getAreaThreshold();
 
-        // Normalize by sqrt(area) vs minimal viewport dimension
-        const rect = (e.target as HTMLElement).getBoundingClientRect();
-        const minViewportDimension = Math.min(rect.width, rect.height);
-        const normalizedValue = Math.sqrt(Math.abs(signedArea)) / minViewportDimension * Math.sign(signedArea);
+        // Check if we should activate zoom mode (crossing the threshold)
+        if (!this.zoomActivated && Math.abs(signedArea) > threshold) {
+          this.zoomActivated = true;
+          this.visualizer.setZoomActivated(true);
+        }
 
-        // Convert normalized value to zoom rate
-        const zoomRatePerNormalizedValuePerSecond = 20; // Adjust this for sensitivity
-        const zoomRate = normalizedValue * zoomRatePerNormalizedValuePerSecond;
-        zoomDelta = zoomRate * dt;
+        // Once zoom is activated, use area as zoom rate
+        if (this.zoomActivated) {
+          // Normalize by sqrt(area) vs minimal viewport dimension
+          const rect = (e.target as HTMLElement).getBoundingClientRect();
+          const minViewportDimension = Math.min(rect.width, rect.height);
+          const normalizedValue = Math.sqrt(Math.abs(signedArea)) / minViewportDimension * Math.sign(signedArea);
+
+          // Convert normalized value to zoom rate
+          const zoomRatePerNormalizedValuePerSecond = 20; // Adjust this for sensitivity
+          const zoomRate = normalizedValue * zoomRatePerNormalizedValuePerSecond;
+          zoomDelta = zoomRate * dt;
+        }
       }
 
       // Apply zoom first if needed

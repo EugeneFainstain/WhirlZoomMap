@@ -26,6 +26,8 @@ export class TrailVisualizer {
   private virtualTouchPoint: VirtualTouchPoint | null = null;
   private readonly virtualTouchDuration: number = 2000; // milliseconds
   private readonly circleRadius: number = 6; // 2x the line width (3 * 2)
+  private readonly areaThreshold: number = 1000; // Area threshold for zoom activation
+  private zoomActivated: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -152,6 +154,14 @@ export class TrailVisualizer {
     return totalSignedArea;
   }
 
+  getAreaThreshold(): number {
+    return this.areaThreshold;
+  }
+
+  setZoomActivated(activated: boolean): void {
+    this.zoomActivated = activated;
+  }
+
   private draw(): void {
     // Clear the canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -211,13 +221,8 @@ export class TrailVisualizer {
       this.ctx.stroke();
     }
 
-    // Draw area circle - radius proportional to total signed area
-    // Position in upper-left corner, aligned with visualize checkbox
-    if (currentPoint && totalSignedArea !== 0) {
-      const radius = Math.sqrt(Math.abs(totalSignedArea)) * 0.5; // Circle AREA is proportional to covered AREA
-      //const radius = Math.abs(totalSignedArea) * 0.01; // Circle RADIUS is proportional to covered AREA
-      const color = totalSignedArea > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
-
+    // Draw area circles - positioned horizontally centered, vertically aligned with visualize checkbox
+    if (currentPoint) {
       // Get position: horizontally centered, vertically aligned with visualize checkbox
       const visualizeToggle = document.getElementById('visualize-toggle');
       const circleX = this.canvas.width / 2;
@@ -227,11 +232,27 @@ export class TrailVisualizer {
         circleY = rect.top + rect.height / 2; // Vertically centered with checkbox
       }
 
-      this.ctx.strokeStyle = color;
-      this.ctx.lineWidth = 3;
-      this.ctx.beginPath();
-      this.ctx.arc(circleX, circleY, radius, 0, Math.PI * 2);
-      this.ctx.stroke();
+      // Draw green threshold circle (only visible before zoom activation)
+      if (!this.zoomActivated) {
+        const thresholdRadius = Math.sqrt(this.areaThreshold) * 0.5;
+        this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.arc(circleX, circleY, thresholdRadius, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
+
+      // Draw red/blue area circle on top (only when there's area)
+      if (totalSignedArea !== 0) {
+        const radius = Math.sqrt(Math.abs(totalSignedArea)) * 0.5; // Circle AREA is proportional to covered AREA
+        const color = totalSignedArea > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
+
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.arc(circleX, circleY, radius, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
     }
 
     // Draw the circle at drag point or virtual touch point
