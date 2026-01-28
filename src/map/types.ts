@@ -41,6 +41,7 @@ export interface MapProvider {
   onMarkerSelect(callback: (marker: MapMarker) => void): void;
   filterPOIByCategories(categories: string[]): void;
   clearPOIFilter(): void;
+  searchPOIsInView(categories: string[], maxResults: number): Promise<MapMarker[]>;
   destroy(): void;
 }
 

@@ -271,31 +271,32 @@ export class SearchBar {
     }
 
     const normalizedQuery = query.toLowerCase().trim();
+    let categories: string[] | undefined;
 
     // 1. Check our custom mapping for synonyms (food -> Restaurant, Cafe, etc.)
-    const mappedCategories = SEARCH_TO_POI_CATEGORIES[normalizedQuery];
-    if (mappedCategories) {
-      this.mapProvider.filterPOIByCategories(mappedCategories);
-      this.isFiltered = true;
-      return;
-    }
+    categories = SEARCH_TO_POI_CATEGORIES[normalizedQuery];
 
     // 2. Try partial match in our mapping
-    for (const [term, cats] of Object.entries(SEARCH_TO_POI_CATEGORIES)) {
-      if (normalizedQuery.includes(term) || term.includes(normalizedQuery)) {
-        this.mapProvider.filterPOIByCategories(cats);
-        this.isFiltered = true;
-        return;
+    if (!categories) {
+      for (const [term, cats] of Object.entries(SEARCH_TO_POI_CATEGORIES)) {
+        if (normalizedQuery.includes(term) || term.includes(normalizedQuery)) {
+          categories = cats;
+          break;
+        }
       }
     }
 
     // 3. Try using the query directly as a category name (e.g., "Restaurant" -> Restaurant)
-    //    MapKit categories are PascalCase, so capitalize first letter of each word
-    const asCategory = query
-      .split(/\s+/)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join('');
-    this.mapProvider.filterPOIByCategories([asCategory]);
+    if (!categories) {
+      const asCategory = query
+        .split(/\s+/)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join('');
+      categories = [asCategory];
+    }
+
+    // Filter the map to only show these POI types
+    this.mapProvider.filterPOIByCategories(categories);
     this.isFiltered = true;
   }
 

@@ -247,11 +247,6 @@ export class AppleMapProvider implements MapProvider {
         this.markerSelectCallback(marker);
       }
     });
-
-    // Fit map to show all markers
-    if (annotations.length > 0) {
-      this.map.showItems(annotations, { animate: true, padding: new mapkit.Padding(50, 50, 50, 50) });
-    }
   }
 
   clearMarkers(): void {
@@ -287,6 +282,45 @@ export class AppleMapProvider implements MapProvider {
     if (!this.map) return;
     // Reset to show all POIs
     this.map.pointOfInterestFilter = null;
+  }
+
+  async searchPOIsInView(categories: string[], maxResults: number): Promise<MapMarker[]> {
+    if (!this.map) return [];
+
+    // Convert category strings to MapKit POI categories
+    const poiCategories = categories
+      .map((cat) => mapkit.PointOfInterestCategory[cat])
+      .filter((cat) => cat !== undefined);
+
+    if (poiCategories.length === 0) return [];
+
+    // Create a POI search with a filter for the specified categories
+    const filter = mapkit.PointOfInterestFilter.including(poiCategories);
+    const search = new mapkit.PointsOfInterestSearch({
+      pointOfInterestFilter: filter,
+      region: this.map.region,
+    });
+
+    return new Promise((resolve) => {
+      search.search((error: any, data: any) => {
+        if (error || !data.places) {
+          console.warn('POI search error:', error);
+          resolve([]);
+          return;
+        }
+
+        // Convert places to MapMarker format, limit to maxResults
+        const markers: MapMarker[] = data.places.slice(0, maxResults).map((place: any, i: number) => ({
+          id: `poi-${i}`,
+          lat: place.coordinate.latitude,
+          lng: place.coordinate.longitude,
+          title: place.name || '',
+          subtitle: place.formattedAddress || '',
+        }));
+
+        resolve(markers);
+      });
+    });
   }
 
   destroy(): void {
