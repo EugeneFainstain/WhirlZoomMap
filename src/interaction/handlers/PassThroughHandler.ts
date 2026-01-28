@@ -41,6 +41,7 @@ export class PassThroughHandler implements InteractionHandler {
 
   // Track if zoom threshold has been crossed during current drag
   private zoomActivated: boolean = false;
+  private alt1ZoomActivated: boolean = false;
 
   // Alt1 mode: use compound zoom value instead of signed area
   private alt1Mode: boolean = false;
@@ -117,8 +118,10 @@ export class PassThroughHandler implements InteractionHandler {
     // For single pointer drag, remember the geographic coordinate under the cursor
     if (this.pointers.size === 1) {
       this.zoomActivated = false; // Reset zoom activation for new drag
+      this.alt1ZoomActivated = false; // Reset Alt1 zoom activation for new drag
       if (this.visualizer) {
         this.visualizer.setZoomActivated(false);
+        this.visualizer.setAlt1ZoomActivated(false);
       }
       const coord = this.getCoordinateAtScreenPoint(mapProvider, e.clientX, e.clientY);
       if (coord) {
@@ -155,14 +158,23 @@ export class PassThroughHandler implements InteractionHandler {
       let zoomDelta = 0;
       if (this.visualizer && dt > 0) {
         if (this.alt1Mode) {
-          // Alt1 mode: use compound zoom value without thresholding
+          // Alt1 mode: use compound zoom value with thresholding
           const compoundValue = this.visualizer.getCompoundZoomValue();
-          if (compoundValue !== 0) {
+          const threshold = this.visualizer.getAlt1Threshold();
+
+          // Check if we should activate Alt1 zoom mode (crossing the threshold)
+          if (!this.alt1ZoomActivated && Math.abs(compoundValue) > threshold) {
+            this.alt1ZoomActivated = true;
+            this.visualizer.setAlt1ZoomActivated(true);
+          }
+
+          // Once Alt1 zoom is activated, use compound value as zoom rate
+          if (this.alt1ZoomActivated) {
             const rect = (e.target as HTMLElement).getBoundingClientRect();
             const minViewportDimension = Math.min(rect.width, rect.height);
             const normalizedValue = Math.sqrt(Math.abs(compoundValue)) / minViewportDimension * Math.sign(compoundValue);
 
-            const zoomRate = normalizedValue * this.visualizer.zoomRateCoeff;
+            const zoomRate = normalizedValue * this.visualizer.getZoomRateCoeff();
             zoomDelta = zoomRate * dt;
           }
         } else {
@@ -184,7 +196,7 @@ export class PassThroughHandler implements InteractionHandler {
             const normalizedValue = Math.sqrt(Math.abs(signedArea)) / minViewportDimension * Math.sign(signedArea);
 
             // Convert normalized value to zoom rate
-            const zoomRate = normalizedValue * this.visualizer.zoomRateCoeff;
+            const zoomRate = normalizedValue * this.visualizer.getZoomRateCoeff();
             zoomDelta = zoomRate * dt;
           }
         }

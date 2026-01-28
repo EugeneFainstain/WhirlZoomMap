@@ -20,8 +20,9 @@ export class TrailVisualizer {
   private readonly virtualTouchDuration: number = 2000; // milliseconds
   private readonly circleRadius        : number = 6;    // 2x the line width (3 * 2)
   private readonly areaThreshold       : number = 1000; // Area threshold for zoom activation
+  private readonly alt1Threshold       : number = 500;  // Alt1 threshold for zoom activation
   private readonly fullCirclesMult     : number = 2.0;  // Multiplier for the fullCircles result
-  public  readonly zoomRateCoeff       : number = 20;   // Adjust this for zoom sensitivity
+  private readonly zoomRateCoeff       : number = 20;   // Adjust this for zoom sensitivity
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -31,6 +32,7 @@ export class TrailVisualizer {
   private dragPoint: DragPoint | null = null;
   private virtualTouchPoint: VirtualTouchPoint | null = null;
   private zoomActivated: boolean = false;
+  private alt1ZoomActivated: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -212,15 +214,28 @@ export class TrailVisualizer {
     const signedArea = this.getSignedArea();
     const fullCircles = this.getFullCircles();
     const signOfArea = signedArea >= 0 ? 1 : -1;
-    return signedArea * fullCircles * this.fullCirclesMult * this.fullCirclesMult * signOfArea;
+    const compoundValMult = this.fullCirclesMult * this.fullCirclesMult;
+    return signedArea * fullCircles * compoundValMult * signOfArea;
+  }
+
+  getZoomRateCoeff(): number {
+    return this.zoomRateCoeff;
   }
 
   getAreaThreshold(): number {
     return this.areaThreshold;
   }
 
+  getAlt1Threshold(): number {
+    return this.alt1Threshold;
+  }
+
   setZoomActivated(activated: boolean): void {
     this.zoomActivated = activated;
+  }
+
+  setAlt1ZoomActivated(activated: boolean): void {
+    this.alt1ZoomActivated = activated;
   }
 
   private drawSpiralArc(centerX: number, centerY: number, fullCircles: number): void {
@@ -367,9 +382,21 @@ export class TrailVisualizer {
         this.drawSpiralArc(leftCircleX, circleY, fullCircles);
       }
 
-      // Draw product visualization (signedArea * fullCircles * fullCirclesMult * fullCirclesMult * sign(signedArea)) at 2/3 width
+      // Draw product visualization (signedArea * fullCircles * (fullCirclesMult^2) * sign(signedArea)) at 2/3 width
       const signOfArea = totalSignedArea >= 0 ? 1 : -1;
-      const product = totalSignedArea * fullCircles * this.fullCirclesMult * this.fullCirclesMult * signOfArea;
+      const compoundValMult = this.fullCirclesMult * this.fullCirclesMult;
+      const product = totalSignedArea * fullCircles * compoundValMult * signOfArea;
+
+      // Draw green threshold circle for Alt1 (only visible before Alt1 zoom activation)
+      if (!this.alt1ZoomActivated) {
+        const thresholdRadius = Math.sqrt(this.alt1Threshold) * 0.5;
+        this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.arc(rightCircleX, circleY, thresholdRadius, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
+
       if (product !== 0) {
         const productRadius = Math.sqrt(Math.abs(product)) * 0.5;
         const productColor = product > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';

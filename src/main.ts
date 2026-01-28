@@ -28,6 +28,7 @@ async function main() {
   // Set up the interaction layer with pass-through handler
   const handler = new PassThroughHandler();
   handler.setVisualizer(trailVisualizer);
+  handler.setAlt1Mode(true); // Alt1 mode enabled by default
   const interactionLayer = new InteractionLayer(interactionElement, handler, mapProvider);
 
   // Set up UI
