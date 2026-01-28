@@ -6,6 +6,7 @@ export class SearchBar {
   private container: HTMLElement;
   private mapProvider: MapProvider;
   private search: any = null;
+  private currentPlaces: any[] = [];
 
   constructor(container: HTMLElement, mapProvider: MapProvider) {
     this.container = container;
@@ -41,6 +42,9 @@ export class SearchBar {
       if (e.key === 'Escape') {
         input.blur();
         this.hideResults();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        this.selectFirstResult(input);
       }
     });
   }
@@ -62,16 +66,53 @@ export class SearchBar {
       if (!this.search) return;
     }
 
+    // Get current map center to bias search results to the visible area
+    const center = this.mapProvider.getCenter();
+    const coordinate = new mapkit.Coordinate(center.lat, center.lng);
+
     this.search.search(query, (error: any, data: any) => {
       if (error) {
         console.warn('Search error:', error);
         return;
       }
       this.showResults(data.places || []);
-    });
+    }, { coordinate });
+  }
+
+  private selectFirstResult(input: HTMLInputElement): void {
+    // If we already have results, select the first one
+    if (this.currentPlaces.length > 0) {
+      this.navigateToPlace(this.currentPlaces[0], input);
+      return;
+    }
+
+    // Otherwise perform an immediate search
+    const query = input.value.trim();
+    if (!query || !this.search) return;
+
+    const center = this.mapProvider.getCenter();
+    const coordinate = new mapkit.Coordinate(center.lat, center.lng);
+
+    this.search.search(query, (error: any, data: any) => {
+      if (error || !data.places || data.places.length === 0) {
+        console.warn('Search error or no results:', error);
+        return;
+      }
+      this.navigateToPlace(data.places[0], input);
+    }, { coordinate });
+  }
+
+  private navigateToPlace(place: any, input: HTMLInputElement): void {
+    const coord = place.coordinate;
+    this.mapProvider.setCenter(coord.latitude, coord.longitude);
+    this.mapProvider.setZoom(15);
+    this.hideResults();
+    input.value = place.name || place.formattedAddress || '';
+    input.blur();
   }
 
   private showResults(places: any[]): void {
+    this.currentPlaces = places;
     const resultsEl = this.container.querySelector('#search-results') as HTMLElement;
     if (places.length === 0) {
       this.hideResults();
