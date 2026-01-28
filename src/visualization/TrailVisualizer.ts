@@ -154,12 +154,108 @@ export class TrailVisualizer {
     return totalSignedArea;
   }
 
+  private getCenterOfMass(): { x: number; y: number } | null {
+    if (this.trail.length === 0) return null;
+
+    let sumX = 0;
+    let sumY = 0;
+    for (const point of this.trail) {
+      sumX += point.x;
+      sumY += point.y;
+    }
+
+    return {
+      x: sumX / this.trail.length,
+      y: sumY / this.trail.length
+    };
+  }
+
+  getSweptAngle(): number {
+    if (this.trail.length < 2) return 0;
+
+    const center = this.getCenterOfMass();
+    if (!center) return 0;
+
+    let sweptAngle = 0;
+
+    for (let i = 0; i < this.trail.length - 1; i++) {
+      const p1 = this.trail[i];
+      const p2 = this.trail[i + 1];
+
+      // Calculate angles from center of mass to each point
+      const angle1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+      const angle2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+
+      // Calculate angle difference, handling wrap-around
+      let angleDiff = angle2 - angle1;
+
+      // Normalize to [-PI, PI]
+      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+      sweptAngle += angleDiff;
+    }
+
+    return sweptAngle;
+  }
+
+  getFullCircles(): number {
+    const sweptAngle = this.getSweptAngle();
+    const sign = sweptAngle >= 0 ? 1 : -1;
+    return sign * Math.max(0, Math.abs(sweptAngle) - Math.PI) / Math.PI;
+  }
+
   getAreaThreshold(): number {
     return this.areaThreshold;
   }
 
   setZoomActivated(activated: boolean): void {
     this.zoomActivated = activated;
+  }
+
+  private drawSpiralArc(centerX: number, centerY: number, fullCircles: number): void {
+    if (fullCircles === 0) return;
+
+    const baseRadius = 40; // Starting radius of the spiral
+    const radiusGrowth = 5; // How much the radius grows per full circle
+    const segments = 100; // Number of line segments to draw the spiral
+
+    // Positive fullCircles = clockwise = red
+    // Negative fullCircles = counter-clockwise = blue
+    const isClockwise = fullCircles > 0;
+    const color = isClockwise ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
+    const absFullCircles = Math.abs(fullCircles);
+
+    // Total angle to sweep (in radians)
+    const totalAngle = absFullCircles * 2 * Math.PI;
+
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = 4;
+    this.ctx.beginPath();
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments; // Parameter from 0 to 1
+      const angle = t * totalAngle;
+
+      // For clockwise (positive), start at top and go clockwise (negative angle direction)
+      // For counter-clockwise (negative), start at top and go counter-clockwise (positive angle direction)
+      const startAngle = -Math.PI / 2; // Start at top
+      const currentAngle = isClockwise ? startAngle + angle : startAngle - angle;
+
+      // Spiral: radius increases with angle
+      const radius = baseRadius + (angle / (2 * Math.PI)) * radiusGrowth;
+
+      const x = centerX + radius * Math.cos(currentAngle);
+      const y = centerY + radius * Math.sin(currentAngle);
+
+      if (i === 0) {
+        this.ctx.moveTo(x, y);
+      } else {
+        this.ctx.lineTo(x, y);
+      }
+    }
+
+    this.ctx.stroke();
   }
 
   private draw(): void {
@@ -252,6 +348,12 @@ export class TrailVisualizer {
         this.ctx.beginPath();
         this.ctx.arc(circleX, circleY, radius, 0, Math.PI * 2);
         this.ctx.stroke();
+      }
+
+      // Draw swept angle spiral indicator
+      const fullCircles = this.getFullCircles();
+      if (fullCircles !== 0) {
+        this.drawSpiralArc(circleX, circleY, fullCircles);
       }
     }
 
