@@ -16,17 +16,20 @@ interface VirtualTouchPoint {
 }
 
 export class TrailVisualizer {
+  private readonly trailDuration       : number = 250;  // milliseconds
+  private readonly virtualTouchDuration: number = 2000; // milliseconds
+  private readonly circleRadius        : number = 6;    // 2x the line width (3 * 2)
+  private readonly areaThreshold       : number = 1000; // Area threshold for zoom activation
+  private readonly fullCirclesMult     : number = 2.0;  // Multiplier for the fullCircles result
+  public  readonly zoomRateCoeff       : number = 20;   // Adjust this for zoom sensitivity
+
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private trail: TrailPoint[] = [];
-  private readonly trailDuration: number = 250; // milliseconds
   private animationId: number | null = null;
   private enabled: boolean = false;
   private dragPoint: DragPoint | null = null;
   private virtualTouchPoint: VirtualTouchPoint | null = null;
-  private readonly virtualTouchDuration: number = 2000; // milliseconds
-  private readonly circleRadius: number = 6; // 2x the line width (3 * 2)
-  private readonly areaThreshold: number = 1000; // Area threshold for zoom activation
   private zoomActivated: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -205,6 +208,13 @@ export class TrailVisualizer {
     return sign * Math.max(0, Math.abs(sweptAngle) - Math.PI) / Math.PI;
   }
 
+  getCompoundZoomValue(): number {
+    const signedArea = this.getSignedArea();
+    const fullCircles = this.getFullCircles();
+    const signOfArea = signedArea >= 0 ? 1 : -1;
+    return signedArea * fullCircles * this.fullCirclesMult * this.fullCirclesMult * signOfArea;
+  }
+
   getAreaThreshold(): number {
     return this.areaThreshold;
   }
@@ -317,11 +327,12 @@ export class TrailVisualizer {
       this.ctx.stroke();
     }
 
-    // Draw area circles - positioned horizontally centered, vertically aligned with visualize checkbox
+    // Draw area circles - positioned at 1/3 width, vertically aligned with visualize checkbox
     if (currentPoint) {
-      // Get position: horizontally centered, vertically aligned with visualize checkbox
+      // Get position: at 1/3 width, vertically aligned with visualize checkbox
       const visualizeToggle = document.getElementById('visualize-toggle');
-      const circleX = this.canvas.width / 2;
+      const leftCircleX = this.canvas.width / 3;
+      const rightCircleX = this.canvas.width * 2 / 3;
       let circleY = 110; // Default fallback
       if (visualizeToggle) {
         const rect = visualizeToggle.getBoundingClientRect();
@@ -334,7 +345,7 @@ export class TrailVisualizer {
         this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
         this.ctx.lineWidth = 3;
         this.ctx.beginPath();
-        this.ctx.arc(circleX, circleY, thresholdRadius, 0, Math.PI * 2);
+        this.ctx.arc(leftCircleX, circleY, thresholdRadius, 0, Math.PI * 2);
         this.ctx.stroke();
       }
 
@@ -346,14 +357,28 @@ export class TrailVisualizer {
         this.ctx.strokeStyle = color;
         this.ctx.lineWidth = 3;
         this.ctx.beginPath();
-        this.ctx.arc(circleX, circleY, radius, 0, Math.PI * 2);
+        this.ctx.arc(leftCircleX, circleY, radius, 0, Math.PI * 2);
         this.ctx.stroke();
       }
 
       // Draw swept angle spiral indicator
       const fullCircles = this.getFullCircles();
       if (fullCircles !== 0) {
-        this.drawSpiralArc(circleX, circleY, fullCircles);
+        this.drawSpiralArc(leftCircleX, circleY, fullCircles);
+      }
+
+      // Draw product visualization (signedArea * fullCircles * fullCirclesMult * fullCirclesMult * sign(signedArea)) at 2/3 width
+      const signOfArea = totalSignedArea >= 0 ? 1 : -1;
+      const product = totalSignedArea * fullCircles * this.fullCirclesMult * this.fullCirclesMult * signOfArea;
+      if (product !== 0) {
+        const productRadius = Math.sqrt(Math.abs(product)) * 0.5;
+        const productColor = product > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
+
+        this.ctx.strokeStyle = productColor;
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.arc(rightCircleX, circleY, productRadius, 0, Math.PI * 2);
+        this.ctx.stroke();
       }
     }
 

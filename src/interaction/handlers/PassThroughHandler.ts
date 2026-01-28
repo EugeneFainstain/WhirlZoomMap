@@ -42,8 +42,15 @@ export class PassThroughHandler implements InteractionHandler {
   // Track if zoom threshold has been crossed during current drag
   private zoomActivated: boolean = false;
 
+  // Alt1 mode: use compound zoom value instead of signed area
+  private alt1Mode: boolean = false;
+
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
+  }
+
+  setAlt1Mode(enabled: boolean): void {
+    this.alt1Mode = enabled;
   }
 
   private getCoordinateAtScreenPoint(mapProvider: MapProvider, clientX: number, clientY: number): { lat: number; lng: number } | null {
@@ -147,26 +154,39 @@ export class PassThroughHandler implements InteractionHandler {
       // Get signed area and calculate zoom rate
       let zoomDelta = 0;
       if (this.visualizer && dt > 0) {
-        const signedArea = this.visualizer.getSignedArea();
-        const threshold = this.visualizer.getAreaThreshold();
+        if (this.alt1Mode) {
+          // Alt1 mode: use compound zoom value without thresholding
+          const compoundValue = this.visualizer.getCompoundZoomValue();
+          if (compoundValue !== 0) {
+            const rect = (e.target as HTMLElement).getBoundingClientRect();
+            const minViewportDimension = Math.min(rect.width, rect.height);
+            const normalizedValue = Math.sqrt(Math.abs(compoundValue)) / minViewportDimension * Math.sign(compoundValue);
 
-        // Check if we should activate zoom mode (crossing the threshold)
-        if (!this.zoomActivated && Math.abs(signedArea) > threshold) {
-          this.zoomActivated = true;
-          this.visualizer.setZoomActivated(true);
-        }
+            const zoomRate = normalizedValue * this.visualizer.zoomRateCoeff;
+            zoomDelta = zoomRate * dt;
+          }
+        } else {
+          // Normal mode: use signed area with threshold
+          const signedArea = this.visualizer.getSignedArea();
+          const threshold = this.visualizer.getAreaThreshold();
 
-        // Once zoom is activated, use area as zoom rate
-        if (this.zoomActivated) {
-          // Normalize by sqrt(area) vs minimal viewport dimension
-          const rect = (e.target as HTMLElement).getBoundingClientRect();
-          const minViewportDimension = Math.min(rect.width, rect.height);
-          const normalizedValue = Math.sqrt(Math.abs(signedArea)) / minViewportDimension * Math.sign(signedArea);
+          // Check if we should activate zoom mode (crossing the threshold)
+          if (!this.zoomActivated && Math.abs(signedArea) > threshold) {
+            this.zoomActivated = true;
+            this.visualizer.setZoomActivated(true);
+          }
 
-          // Convert normalized value to zoom rate
-          const zoomRatePerNormalizedValuePerSecond = 20; // Adjust this for sensitivity
-          const zoomRate = normalizedValue * zoomRatePerNormalizedValuePerSecond;
-          zoomDelta = zoomRate * dt;
+          // Once zoom is activated, use area as zoom rate
+          if (this.zoomActivated) {
+            // Normalize by sqrt(area) vs minimal viewport dimension
+            const rect = (e.target as HTMLElement).getBoundingClientRect();
+            const minViewportDimension = Math.min(rect.width, rect.height);
+            const normalizedValue = Math.sqrt(Math.abs(signedArea)) / minViewportDimension * Math.sign(signedArea);
+
+            // Convert normalized value to zoom rate
+            const zoomRate = normalizedValue * this.visualizer.zoomRateCoeff;
+            zoomDelta = zoomRate * dt;
+          }
         }
       }
 

@@ -56,6 +56,12 @@ async function main() {
     trailVisualizer.setEnabled(visualize);
   });
 
+  // Alt1 toggle - use compound zoom value
+  const alt1Checkbox = document.getElementById('alt1-toggle-checkbox') as HTMLInputElement;
+  alt1Checkbox.addEventListener('change', () => {
+    handler.setAlt1Mode(alt1Checkbox.checked);
+  });
+
   // Expose for debugging in dev
   if (import.meta.env.DEV) {
     (window as any).__whirlZoomMap = {
