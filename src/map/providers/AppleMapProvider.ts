@@ -264,7 +264,7 @@ export class AppleMapProvider implements MapProvider {
 
     if (categories.length === 0) {
       // Hide all POIs
-      this.map.pointOfInterestFilter = mapkit.PointOfInterestFilter.excluding([]);
+      this.map.pointOfInterestFilter = mapkit.PointOfInterestFilter.including([]);
       return;
     }
 

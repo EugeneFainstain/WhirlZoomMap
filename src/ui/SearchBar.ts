@@ -240,28 +240,9 @@ export class SearchBar {
     }
   }
 
-  private performSearch(query: string): void {
-    if (!query.trim()) {
-      this.hideResults();
-      return;
-    }
-
-    if (!this.search) {
-      this.initSearch();
-      if (!this.search) return;
-    }
-
-    // Get current map center to bias search results to the visible area
-    const center = this.mapProvider.getCenter();
-    const coordinate = new mapkit.Coordinate(center.lat, center.lng);
-
-    this.search.search(query, (error: any, data: any) => {
-      if (error) {
-        console.warn('Search error:', error);
-        return;
-      }
-      this.showResults(data.places || []);
-    }, { coordinate });
+  private performSearch(_query: string): void {
+    // Dropdown search disabled - only POI filtering via Enter key
+    this.hideResults();
   }
 
   private filterPOIs(query: string): void {
@@ -271,6 +252,14 @@ export class SearchBar {
     }
 
     const normalizedQuery = query.toLowerCase().trim();
+
+    // Special case: "none" hides all POIs
+    if (normalizedQuery === 'none') {
+      this.mapProvider.filterPOIByCategories([]);
+      this.isFiltered = true;
+      return;
+    }
+
     let categories: string[] | undefined;
 
     // 1. Check our custom mapping for synonyms (food -> Restaurant, Cafe, etc.)
