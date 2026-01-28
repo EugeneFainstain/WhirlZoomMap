@@ -2,11 +2,192 @@ import { MapProvider } from '../map/types';
 
 declare const mapkit: any;
 
+// Map common search terms to MapKit POI categories
+const SEARCH_TO_POI_CATEGORIES: Record<string, string[]> = {
+  // Food & Drink
+  food: ['Restaurant', 'Cafe', 'Bakery', 'FoodMarket'],
+  restaurant: ['Restaurant'],
+  restaurants: ['Restaurant'],
+  cafe: ['Cafe'],
+  cafes: ['Cafe'],
+  coffee: ['Cafe'],
+  bakery: ['Bakery'],
+  bakeries: ['Bakery'],
+  grocery: ['FoodMarket'],
+  groceries: ['FoodMarket'],
+  supermarket: ['FoodMarket'],
+  'food market': ['FoodMarket'],
+  winery: ['Winery'],
+  wine: ['Winery'],
+  brewery: ['Brewery'],
+  beer: ['Brewery'],
+  distillery: ['Distillery'],
+
+  // Nightlife & Entertainment
+  bar: ['Nightlife'],
+  bars: ['Nightlife'],
+  nightlife: ['Nightlife'],
+  club: ['Nightlife'],
+  clubs: ['Nightlife'],
+  pub: ['Nightlife'],
+  pubs: ['Nightlife'],
+  movie: ['MovieTheater'],
+  movies: ['MovieTheater'],
+  cinema: ['MovieTheater'],
+  'movie theater': ['MovieTheater'],
+  theater: ['Theater'],
+  theatre: ['Theater'],
+  music: ['MusicVenue'],
+  'music venue': ['MusicVenue'],
+  concert: ['MusicVenue'],
+  amusement: ['Amusement'],
+  'amusement park': ['Amusement'],
+  'theme park': ['Amusement'],
+  casino: ['Casino'],
+  casinos: ['Casino'],
+
+  // Outdoors & Nature
+  park: ['Park'],
+  parks: ['Park'],
+  'national park': ['NationalPark'],
+  beach: ['Beach'],
+  beaches: ['Beach'],
+  campground: ['Campground'],
+  camping: ['Campground'],
+  marina: ['Marina'],
+  boat: ['Marina'],
+  zoo: ['Zoo'],
+  zoos: ['Zoo'],
+  aquarium: ['Aquarium'],
+
+  // Sports & Fitness
+  gym: ['FitnessCenter'],
+  fitness: ['FitnessCenter'],
+  'fitness center': ['FitnessCenter'],
+  golf: ['Golf'],
+  'golf course': ['Golf'],
+  stadium: ['Stadium'],
+  stadiums: ['Stadium'],
+  skating: ['Skating'],
+  'ice skating': ['Skating'],
+  skiing: ['Skiing'],
+  'ski resort': ['Skiing'],
+  swimming: ['Swimming'],
+  pool: ['Swimming'],
+  tennis: ['Tennis'],
+  'tennis court': ['Tennis'],
+  soccer: ['Soccer'],
+  football: ['Soccer'],
+  volleyball: ['Volleyball'],
+  surfing: ['Surfing'],
+  surf: ['Surfing'],
+  kayaking: ['Kayaking'],
+  kayak: ['Kayaking'],
+  'rock climbing': ['RockClimbing'],
+  climbing: ['RockClimbing'],
+
+  // Services
+  bank: ['Bank'],
+  banks: ['Bank'],
+  atm: ['ATM'],
+  atms: ['ATM'],
+  hospital: ['Hospital'],
+  hospitals: ['Hospital'],
+  emergency: ['Hospital'],
+  pharmacy: ['Pharmacy'],
+  pharmacies: ['Pharmacy'],
+  drugstore: ['Pharmacy'],
+  police: ['Police'],
+  'police station': ['Police'],
+  'fire station': ['FireStation'],
+  fire: ['FireStation'],
+  'post office': ['PostOffice'],
+  post: ['PostOffice'],
+  mail: ['PostOffice'],
+  laundry: ['Laundry'],
+  laundromat: ['Laundry'],
+  gas: ['GasStation'],
+  'gas station': ['GasStation'],
+  fuel: ['GasStation'],
+  petrol: ['GasStation'],
+  ev: ['EVCharger'],
+  'ev charger': ['EVCharger'],
+  'electric charger': ['EVCharger'],
+  'charging station': ['EVCharger'],
+  parking: ['Parking'],
+  'car rental': ['CarRental'],
+  rental: ['CarRental'],
+  automotive: ['Automotive'],
+  'car repair': ['Automotive'],
+  mechanic: ['Automotive'],
+
+  // Travel & Transportation
+  hotel: ['Hotel'],
+  hotels: ['Hotel'],
+  motel: ['Hotel'],
+  lodging: ['Hotel'],
+  airport: ['Airport'],
+  airports: ['Airport'],
+  'public transport': ['PublicTransport'],
+  transit: ['PublicTransport'],
+  bus: ['PublicTransport'],
+  train: ['PublicTransport'],
+  subway: ['PublicTransport'],
+  'rv park': ['RVPark'],
+  rv: ['RVPark'],
+
+  // Shopping
+  store: ['Store'],
+  stores: ['Store'],
+  shop: ['Store'],
+  shops: ['Store'],
+  shopping: ['Store'],
+  mall: ['Store'],
+
+  // Culture & Education
+  museum: ['Museum'],
+  museums: ['Museum'],
+  library: ['Library'],
+  libraries: ['Library'],
+  landmark: ['Landmark'],
+  landmarks: ['Landmark'],
+  castle: ['Castle'],
+  castles: ['Castle'],
+  fortress: ['Fortress'],
+  school: ['School'],
+  schools: ['School'],
+  university: ['University'],
+  universities: ['University'],
+  college: ['University'],
+
+  // Personal Care & Health
+  spa: ['Spa'],
+  spas: ['Spa'],
+  beauty: ['Beauty'],
+  'beauty salon': ['Beauty'],
+  'hair salon': ['HairSalon'],
+  haircut: ['HairSalon'],
+  barber: ['HairSalon'],
+  dentist: ['Dentist'],
+  dental: ['Dentist'],
+  doctor: ['Doctor'],
+  clinic: ['Doctor'],
+  'medical center': ['Doctor'],
+
+  // Other
+  'convention center': ['ConventionCenter'],
+  convention: ['ConventionCenter'],
+  fairground: ['Fairground'],
+  fair: ['Fairground'],
+  karting: ['Karting'],
+  'go kart': ['Karting'],
+};
+
 export class SearchBar {
   private container: HTMLElement;
   private mapProvider: MapProvider;
   private search: any = null;
-  private currentPlaces: any[] = [];
+  private isFiltered = false;
 
   constructor(container: HTMLElement, mapProvider: MapProvider) {
     this.container = container;
@@ -41,10 +222,14 @@ export class SearchBar {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         input.blur();
+        input.value = '';
         this.hideResults();
+        this.clearPOIFilter();
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        this.selectFirstResult(input);
+        this.filterPOIs(input.value.trim());
+        this.hideResults();
+        input.blur();
       }
     });
   }
@@ -79,40 +264,47 @@ export class SearchBar {
     }, { coordinate });
   }
 
-  private selectFirstResult(input: HTMLInputElement): void {
-    // If we already have results, select the first one
-    if (this.currentPlaces.length > 0) {
-      this.navigateToPlace(this.currentPlaces[0], input);
+  private filterPOIs(query: string): void {
+    if (!query) {
+      this.clearPOIFilter();
       return;
     }
 
-    // Otherwise perform an immediate search
-    const query = input.value.trim();
-    if (!query || !this.search) return;
+    const normalizedQuery = query.toLowerCase().trim();
 
-    const center = this.mapProvider.getCenter();
-    const coordinate = new mapkit.Coordinate(center.lat, center.lng);
+    // 1. Check our custom mapping for synonyms (food -> Restaurant, Cafe, etc.)
+    const mappedCategories = SEARCH_TO_POI_CATEGORIES[normalizedQuery];
+    if (mappedCategories) {
+      this.mapProvider.filterPOIByCategories(mappedCategories);
+      this.isFiltered = true;
+      return;
+    }
 
-    this.search.search(query, (error: any, data: any) => {
-      if (error || !data.places || data.places.length === 0) {
-        console.warn('Search error or no results:', error);
+    // 2. Try partial match in our mapping
+    for (const [term, cats] of Object.entries(SEARCH_TO_POI_CATEGORIES)) {
+      if (normalizedQuery.includes(term) || term.includes(normalizedQuery)) {
+        this.mapProvider.filterPOIByCategories(cats);
+        this.isFiltered = true;
         return;
       }
-      this.navigateToPlace(data.places[0], input);
-    }, { coordinate });
+    }
+
+    // 3. Try using the query directly as a category name (e.g., "Restaurant" -> Restaurant)
+    //    MapKit categories are PascalCase, so capitalize first letter of each word
+    const asCategory = query
+      .split(/\s+/)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join('');
+    this.mapProvider.filterPOIByCategories([asCategory]);
+    this.isFiltered = true;
   }
 
-  private navigateToPlace(place: any, input: HTMLInputElement): void {
-    const coord = place.coordinate;
-    this.mapProvider.setCenter(coord.latitude, coord.longitude);
-    this.mapProvider.setZoom(15);
-    this.hideResults();
-    input.value = place.name || place.formattedAddress || '';
-    input.blur();
+  private clearPOIFilter(): void {
+    this.mapProvider.clearPOIFilter();
+    this.isFiltered = false;
   }
 
   private showResults(places: any[]): void {
-    this.currentPlaces = places;
     const resultsEl = this.container.querySelector('#search-results') as HTMLElement;
     if (places.length === 0) {
       this.hideResults();

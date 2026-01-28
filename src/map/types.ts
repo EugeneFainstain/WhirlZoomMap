@@ -10,6 +10,14 @@ export interface MapBounds {
   west: number;
 }
 
+export interface MapMarker {
+  id: string;
+  lat: number;
+  lng: number;
+  title: string;
+  subtitle?: string;
+}
+
 export interface MapOptions {
   center: LatLng;
   zoom: number;
@@ -28,6 +36,11 @@ export interface MapProvider {
   zoomAtPoint(x: number, y: number, zoomDelta: number): void;
   getBounds(): MapBounds;
   setNativeInteractionsEnabled(enabled: boolean): void;
+  addMarkers(markers: MapMarker[]): void;
+  clearMarkers(): void;
+  onMarkerSelect(callback: (marker: MapMarker) => void): void;
+  filterPOIByCategories(categories: string[]): void;
+  clearPOIFilter(): void;
   destroy(): void;
 }
 

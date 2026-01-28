@@ -1,4 +1,4 @@
-import { MapProvider, MapOptions, LatLng, MapBounds } from '../types';
+import { MapProvider, MapOptions, LatLng, MapBounds, MapMarker } from '../types';
 import { config } from '../../config';
 
 declare const mapkit: any;
@@ -6,6 +6,8 @@ declare const mapkit: any;
 export class AppleMapProvider implements MapProvider {
   private map: any = null;
   private container: HTMLElement | null = null;
+  private markerMap = new Map<any, MapMarker>();
+  private markerSelectCallback: ((marker: MapMarker) => void) | null = null;
 
   async init(container: HTMLElement, options: MapOptions): Promise<void> {
     this.container = container;
@@ -217,6 +219,74 @@ export class AppleMapProvider implements MapProvider {
     this.map.isScrollEnabled = enabled;
     this.map.isZoomEnabled = enabled;
     this.map.isRotateEnabled = enabled;
+  }
+
+  addMarkers(markers: MapMarker[]): void {
+    if (!this.map) return;
+
+    const annotations = markers.map((marker) => {
+      const annotation = new mapkit.MarkerAnnotation(
+        new mapkit.Coordinate(marker.lat, marker.lng),
+        {
+          title: marker.title,
+          subtitle: marker.subtitle || '',
+          color: '#e74c3c',
+        }
+      );
+      this.markerMap.set(annotation, marker);
+      return annotation;
+    });
+
+    this.map.addAnnotations(annotations);
+
+    // Set up selection handler if not already done
+    this.map.addEventListener('select', (event: any) => {
+      const annotation = event.annotation;
+      const marker = this.markerMap.get(annotation);
+      if (marker && this.markerSelectCallback) {
+        this.markerSelectCallback(marker);
+      }
+    });
+
+    // Fit map to show all markers
+    if (annotations.length > 0) {
+      this.map.showItems(annotations, { animate: true, padding: new mapkit.Padding(50, 50, 50, 50) });
+    }
+  }
+
+  clearMarkers(): void {
+    if (!this.map) return;
+    this.map.removeAnnotations(this.map.annotations);
+    this.markerMap.clear();
+  }
+
+  onMarkerSelect(callback: (marker: MapMarker) => void): void {
+    this.markerSelectCallback = callback;
+  }
+
+  filterPOIByCategories(categories: string[]): void {
+    if (!this.map) return;
+
+    if (categories.length === 0) {
+      // Hide all POIs
+      this.map.pointOfInterestFilter = mapkit.PointOfInterestFilter.excluding([]);
+      return;
+    }
+
+    // Map category strings to MapKit POI categories
+    const poiCategories = categories
+      .map((cat) => mapkit.PointOfInterestCategory[cat])
+      .filter((cat) => cat !== undefined);
+
+    if (poiCategories.length > 0) {
+      this.map.pointOfInterestFilter = mapkit.PointOfInterestFilter.including(poiCategories);
+    }
+  }
+
+  clearPOIFilter(): void {
+    if (!this.map) return;
+    // Reset to show all POIs
+    this.map.pointOfInterestFilter = null;
   }
 
   destroy(): void {
