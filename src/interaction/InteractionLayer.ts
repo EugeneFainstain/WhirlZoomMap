@@ -5,6 +5,8 @@ export class InteractionLayer {
   private element: HTMLElement;
   private handler: InteractionHandler;
   private mapProvider: MapProvider;
+  private activePointers: Set<number> = new Set();
+  private enabled: boolean = true;
 
   constructor(element: HTMLElement, handler: InteractionHandler, mapProvider: MapProvider) {
     this.element = element;
@@ -15,45 +17,70 @@ export class InteractionLayer {
   }
 
   private bindEvents(): void {
-    this.element.addEventListener('pointerdown', this.onPointerDown);
-    this.element.addEventListener('pointermove', this.onPointerMove);
-    this.element.addEventListener('pointerup', this.onPointerUp);
-    this.element.addEventListener('pointercancel', this.onPointerUp);
-    this.element.addEventListener('wheel', this.onWheel, { passive: false });
+    // Listen on document to intercept events before they reach the map
+    document.addEventListener('pointerdown', this.onPointerDown, true);
+    document.addEventListener('pointermove', this.onPointerMove, true);
+    document.addEventListener('pointerup', this.onPointerUp, true);
+    document.addEventListener('pointercancel', this.onPointerUp, true);
 
-    // Prevent default touch behaviors (browser zoom, scroll)
-    this.element.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-    this.element.addEventListener('gesturestart', (e) => e.preventDefault());
+    // Wheel events - listen on document for the map area
+    document.addEventListener('wheel', this.onWheelCapture, { passive: false, capture: true });
+  }
+
+  private onWheelCapture = (e: WheelEvent): void => {
+    if (this.enabled && this.isEventOnMap(e)) {
+      e.preventDefault();
+      this.handler.onWheel(e, this.mapProvider);
+    }
+  };
+
+  private isEventOnMap(e: { clientX: number; clientY: number }): boolean {
+    const rect = this.element.getBoundingClientRect();
+    return (
+      e.clientX >= rect.left &&
+      e.clientX <= rect.right &&
+      e.clientY >= rect.top &&
+      e.clientY <= rect.bottom
+    );
   }
 
   private onPointerDown = (e: PointerEvent): void => {
-    this.element.setPointerCapture(e.pointerId);
-    this.handler.onPointerDown(e, this.mapProvider);
+    if (!this.enabled || !this.isEventOnMap(e)) return;
+
+    this.activePointers.add(e.pointerId);
+    this.handler.onPointerDown(e, this.mapProvider, this.element);
   };
 
   private onPointerMove = (e: PointerEvent): void => {
-    this.handler.onPointerMove(e, this.mapProvider);
+    if (!this.activePointers.has(e.pointerId)) return;
+
+    this.handler.onPointerMove(e, this.mapProvider, this.element);
   };
 
   private onPointerUp = (e: PointerEvent): void => {
-    this.element.releasePointerCapture(e.pointerId);
-    this.handler.onPointerUp(e, this.mapProvider);
-  };
+    if (!this.activePointers.has(e.pointerId)) return;
 
-  private onWheel = (e: WheelEvent): void => {
-    e.preventDefault();
-    this.handler.onWheel(e, this.mapProvider);
+    this.activePointers.delete(e.pointerId);
+    this.handler.onPointerUp(e, this.mapProvider);
   };
 
   setHandler(handler: InteractionHandler): void {
     this.handler = handler;
   }
 
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    // Clear active pointers when disabling to prevent stuck gestures
+    if (!enabled) {
+      this.activePointers.clear();
+    }
+  }
+
   destroy(): void {
-    this.element.removeEventListener('pointerdown', this.onPointerDown);
-    this.element.removeEventListener('pointermove', this.onPointerMove);
-    this.element.removeEventListener('pointerup', this.onPointerUp);
-    this.element.removeEventListener('pointercancel', this.onPointerUp);
-    this.element.removeEventListener('wheel', this.onWheel);
+    document.removeEventListener('pointerdown', this.onPointerDown, true);
+    document.removeEventListener('pointermove', this.onPointerMove, true);
+    document.removeEventListener('pointerup', this.onPointerUp, true);
+    document.removeEventListener('pointercancel', this.onPointerUp, true);
+    document.removeEventListener('wheel', this.onWheelCapture, true);
   }
 }

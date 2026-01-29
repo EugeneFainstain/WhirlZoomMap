@@ -39,15 +39,9 @@ async function main() {
   const nativeCheckbox = document.getElementById('native-toggle-checkbox') as HTMLInputElement;
   nativeCheckbox.addEventListener('change', () => {
     const useNative = nativeCheckbox.checked;
-    if (useNative) {
-      interactionElement.style.pointerEvents = 'none';
-      mapContainer.style.pointerEvents = 'all';
-      mapProvider.setNativeInteractionsEnabled(true);
-    } else {
-      interactionElement.style.pointerEvents = 'all';
-      mapContainer.style.pointerEvents = 'none';
-      mapProvider.setNativeInteractionsEnabled(false);
-    }
+    // Toggle native map interactions and disable custom gesture handling
+    mapProvider.setNativeInteractionsEnabled(useNative);
+    interactionLayer.setEnabled(!useNative);
   });
 
   // Visualize toggle

@@ -46,6 +46,9 @@ export class PassThroughHandler implements InteractionHandler {
   // Alt1 mode: use compound zoom value instead of signed area
   private alt1Mode: boolean = false;
 
+  // Viewport element for consistent bounds calculations
+  private viewport: HTMLElement | null = null;
+
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
   }
@@ -93,7 +96,8 @@ export class PassThroughHandler implements InteractionHandler {
     mapProvider.panBy(panPixelsX, panPixelsY);
   }
 
-  onPointerDown(e: PointerEvent, mapProvider: MapProvider): void {
+  onPointerDown(e: PointerEvent, mapProvider: MapProvider, viewport: HTMLElement): void {
+    this.viewport = viewport;
     // Stop any ongoing inertia animation
     this.stopInertia();
     this.velocitySamples = [];
@@ -137,7 +141,8 @@ export class PassThroughHandler implements InteractionHandler {
     }
   }
 
-  onPointerMove(e: PointerEvent, mapProvider: MapProvider): void {
+  onPointerMove(e: PointerEvent, mapProvider: MapProvider, viewport: HTMLElement): void {
+    this.viewport = viewport;
     const pointer = this.pointers.get(e.pointerId);
     if (!pointer) return;
 
@@ -170,7 +175,7 @@ export class PassThroughHandler implements InteractionHandler {
 
           // Once Alt1 zoom is activated, use compound value as zoom rate
           if (this.alt1ZoomActivated) {
-            const rect = (e.target as HTMLElement).getBoundingClientRect();
+            const rect = viewport.getBoundingClientRect();
             const minViewportDimension = Math.min(rect.width, rect.height);
             const normalizedValue = Math.sqrt(Math.abs(compoundValue)) / minViewportDimension * Math.sign(compoundValue);
 
@@ -191,7 +196,7 @@ export class PassThroughHandler implements InteractionHandler {
           // Once zoom is activated, use area as zoom rate
           if (this.zoomActivated) {
             // Normalize by sqrt(area) vs minimal viewport dimension
-            const rect = (e.target as HTMLElement).getBoundingClientRect();
+            const rect = viewport.getBoundingClientRect();
             const minViewportDimension = Math.min(rect.width, rect.height);
             const normalizedValue = Math.sqrt(Math.abs(signedArea)) / minViewportDimension * Math.sign(signedArea);
 
@@ -204,7 +209,7 @@ export class PassThroughHandler implements InteractionHandler {
 
       // Apply zoom first if needed
       if (Math.abs(zoomDelta) > 0.0001) {
-        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        const rect = viewport.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         mapProvider.zoomAtPoint(x, y, zoomDelta);
@@ -291,11 +296,12 @@ export class PassThroughHandler implements InteractionHandler {
     this.pinchScheduled = true;
     requestAnimationFrame(() => {
       this.pinchScheduled = false;
-      this.processPinchAndRotate(mapProvider, e.target as HTMLElement);
+      this.processPinchAndRotate(mapProvider);
     });
   }
 
-  private processPinchAndRotate(mapProvider: MapProvider, target: HTMLElement): void {
+  private processPinchAndRotate(mapProvider: MapProvider): void {
+    if (!this.viewport) return;
     // Get both pointers
     const pointerArray = Array.from(this.pointers.values());
     if (pointerArray.length < 2) return;
@@ -321,7 +327,7 @@ export class PassThroughHandler implements InteractionHandler {
     // Pinch zoom
     if (this.lastPinchDistance !== null && distance > 0) {
       // Normalize zoom delta by viewport diagonal to make sensitivity consistent across devices
-      const rect = target.getBoundingClientRect();
+      const rect = this.viewport.getBoundingClientRect();
       const viewportDiagonal = Math.sqrt(rect.width * rect.width + rect.height * rect.height);
 
       // Scale the zoom delta by how much of the viewport diagonal the gesture represents

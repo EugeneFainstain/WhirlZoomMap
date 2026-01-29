@@ -21,15 +21,19 @@ html, body {
 #map-container {
   position: absolute;
   inset: 0;
-  pointer-events: none;
+  /* Allow pointer events so POI clicks work */
+  pointer-events: all;
+  /* Prevent default touch behaviors (scroll, zoom) - we handle gestures ourselves */
+  touch-action: none;
 }
 
-/* Interaction layer sits on top of the map */
+/* Interaction layer sits on top of the map but allows clicks through */
 #interaction-layer {
   position: absolute;
   inset: 0;
-  pointer-events: all;
-  touch-action: none;
+  /* Allow clicks to pass through to the map for POI selection */
+  /* Drag/pinch gestures are handled via document-level capture listeners */
+  pointer-events: none;
   z-index: 10;
   cursor: grab;
 }

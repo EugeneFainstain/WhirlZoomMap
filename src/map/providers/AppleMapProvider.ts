@@ -35,6 +35,10 @@ export class AppleMapProvider implements MapProvider {
         isScrollEnabled: false,
         isZoomEnabled: false,
         isRotateEnabled: false,
+        // Enable POI selection
+        selectableMapFeatures: [
+          mapkit.MapFeatureType.PointOfInterest,
+        ],
       });
 
       this.setZoom(options.zoom, false);
