@@ -19,8 +19,6 @@ interface VelocitySample {
 
 export class PassThroughHandler implements InteractionHandler {
   private pointers: Map<number, PointerState> = new Map();
-  private lastPinchDistance: number | null = null;
-  private lastPinchAngle: number | null = null;
   private visualizer: TrailVisualizer | null = null;
 
   // Drag anchor - the geographic coordinate that should stay under the cursor during drag
@@ -33,11 +31,9 @@ export class PassThroughHandler implements InteractionHandler {
   private readonly friction = 0.95; // Deceleration factor per frame
   private readonly minVelocity = 0.5; // Stop when velocity drops below this
 
-  // Pinch gesture throttling - only process once per frame
-  private pinchScheduled = false;
-
   // Track the centroid of two-finger gestures for panning
   private lastTwoFingerCentroid: { x: number; y: number } | null = null;
+
 
   // Track if zoom threshold has been crossed during current drag
   private zoomActivated: boolean = false;
@@ -111,11 +107,8 @@ export class PassThroughHandler implements InteractionHandler {
       lastTime: performance.now(),
     });
 
-    // Reset pinch state when transitioning to 2 fingers
-    // This prevents tiny movements during tap from causing zoom
+    // When transitioning to two-finger mode, reset centroid tracking
     if (this.pointers.size === 2) {
-      this.lastPinchDistance = null;
-      this.lastPinchAngle = null;
       this.lastTwoFingerCentroid = null;
     }
 
@@ -233,27 +226,56 @@ export class PassThroughHandler implements InteractionHandler {
     }
 
     // Update pointer position BEFORE handling multi-touch gestures
-    // This ensures pinch calculations use current positions, not stale ones
     pointer.lastX = e.clientX;
     pointer.lastY = e.clientY;
     pointer.lastTime = now;
 
-    // Handle two-finger gestures with updated positions
+    // Two-finger gestures: pinch zoom, rotation, and panning
     if (this.pointers.size === 2) {
-      // Two pointers: pinch zoom + rotate
-      this.handlePinchAndRotate(e, mapProvider);
+      const pointerArray = Array.from(this.pointers.values());
+      const p1 = pointerArray[0];
+      const p2 = pointerArray[1];
+
+      // Calculate centroid for panning (zoom and rotate are handled natively)
+      const centroidX = (p1.lastX + p2.lastX) / 2;
+      const centroidY = (p1.lastY + p2.lastY) / 2;
+
+      // Apply panning
+      if (this.lastTwoFingerCentroid) {
+        const panDx = centroidX - this.lastTwoFingerCentroid.x;
+        const panDy = centroidY - this.lastTwoFingerCentroid.y;
+
+        if (Math.abs(panDx) > 0.1 || Math.abs(panDy) > 0.1) {
+          mapProvider.panBy(-panDx, -panDy);
+        }
+      }
+
+      // Update tracking values for next frame
+      this.lastTwoFingerCentroid = { x: centroidX, y: centroidY };
     }
   }
 
   onPointerUp(e: PointerEvent, mapProvider: MapProvider): void {
     const wasSinglePointer = this.pointers.size === 1;
+    const wasMultiPointer = this.pointers.size > 1;
     const pointer = this.pointers.get(e.pointerId);
     this.pointers.delete(e.pointerId);
 
-    if (this.pointers.size < 2) {
-      this.lastPinchDistance = null;
-      this.lastPinchAngle = null;
+    // Clear two-finger tracking when leaving two-finger mode
+    if (wasMultiPointer && this.pointers.size < 2) {
       this.lastTwoFingerCentroid = null;
+    }
+
+    // When transitioning from multi-finger to single-finger, update the drag anchor
+    // to prevent the map from jumping to the old anchor position
+    if (wasMultiPointer && this.pointers.size === 1) {
+      const remainingPointer = this.pointers.values().next().value;
+      if (remainingPointer) {
+        const coord = this.getCoordinateAtScreenPoint(mapProvider, remainingPointer.lastX, remainingPointer.lastY);
+        if (coord) {
+          this.dragAnchorCoord = coord;
+        }
+      }
     }
 
     // Clear drag anchor when all pointers are released
@@ -284,70 +306,6 @@ export class PassThroughHandler implements InteractionHandler {
     const zoomDelta = -e.deltaY * 0.002;
     // Use offsetX/offsetY which are already relative to the target element
     mapProvider.zoomAtPoint(e.offsetX, e.offsetY, zoomDelta);
-  }
-
-  private handlePinchAndRotate(e: PointerEvent, mapProvider: MapProvider): void {
-    // Throttle pinch calculations to once per animation frame
-    // This prevents processing each finger's movement separately
-    if (this.pinchScheduled) {
-      return;
-    }
-
-    this.pinchScheduled = true;
-    requestAnimationFrame(() => {
-      this.pinchScheduled = false;
-      this.processPinchAndRotate(mapProvider);
-    });
-  }
-
-  private processPinchAndRotate(mapProvider: MapProvider): void {
-    if (!this.viewport) return;
-    // Get both pointers
-    const pointerArray = Array.from(this.pointers.values());
-    if (pointerArray.length < 2) return;
-
-    const [p1, p2] = pointerArray;
-    const dx = p2.lastX - p1.lastX;
-    const dy = p2.lastY - p1.lastY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-
-    const centerX = (p1.lastX + p2.lastX) / 2;
-    const centerY = (p1.lastY + p2.lastY) / 2;
-
-    // Two-finger panning: track centroid movement
-    if (this.lastTwoFingerCentroid !== null) {
-      const panDx = centerX - this.lastTwoFingerCentroid.x;
-      const panDy = centerY - this.lastTwoFingerCentroid.y;
-
-      // Apply pan
-      mapProvider.panBy(-panDx, -panDy);
-    }
-
-    // Pinch zoom
-    if (this.lastPinchDistance !== null && distance > 0) {
-      // Normalize zoom delta by viewport diagonal to make sensitivity consistent across devices
-      const rect = this.viewport.getBoundingClientRect();
-      const viewportDiagonal = Math.sqrt(rect.width * rect.width + rect.height * rect.height);
-
-      // Scale the zoom delta by how much of the viewport diagonal the gesture represents
-      const normalizedScale = (distance / viewportDiagonal) / (this.lastPinchDistance / viewportDiagonal);
-      const zoomDelta = (normalizedScale - 1) * 2;
-
-      // Convert from client coordinates to element-relative coordinates
-      mapProvider.zoomAtPoint(centerX - rect.left, centerY - rect.top, zoomDelta);
-    }
-
-    // Rotation
-    if (this.lastPinchAngle !== null) {
-      const angleDelta = angle - this.lastPinchAngle;
-      const currentRotation = mapProvider.getRotation();
-      mapProvider.setRotation(currentRotation + angleDelta, false);
-    }
-
-    this.lastTwoFingerCentroid = { x: centerX, y: centerY };
-    this.lastPinchDistance = distance;
-    this.lastPinchAngle = angle;
   }
 
   private stopInertia(): void {

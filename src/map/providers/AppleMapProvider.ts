@@ -33,8 +33,8 @@ export class AppleMapProvider implements MapProvider {
         showsZoomControl: false,
         showsMapTypeControl: false,
         isScrollEnabled: false,
-        isZoomEnabled: false,
-        isRotateEnabled: false,
+        isZoomEnabled: true,
+        isRotateEnabled: true,
         // Enable POI selection
         selectableMapFeatures: [
           mapkit.MapFeatureType.PointOfInterest,
@@ -109,12 +109,20 @@ export class AppleMapProvider implements MapProvider {
     const containerWidth = this.container.clientWidth;
     const containerHeight = this.container.clientHeight;
 
+    // Rotate the pan vector by the map's rotation angle
+    const rotation = this.map.rotation;
+    const radians = rotation * (Math.PI / 180);
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    const rotatedDx = dx * cos + dy * sin;
+    const rotatedDy = -dx * sin + dy * cos;
+
     // Convert pixel offset to coordinate offset
     const lngPerPixel = span.longitudeDelta / containerWidth;
     const latPerPixel = span.latitudeDelta / containerHeight;
 
-    let newLat = center.latitude - dy * latPerPixel;
-    let newLng = center.longitude + dx * lngPerPixel;
+    let newLat = center.latitude - rotatedDy * latPerPixel;
+    let newLng = center.longitude + rotatedDx * lngPerPixel;
 
     // Normalize longitude to -180 to 180 range
     while (newLng > 180) newLng -= 360;
@@ -220,9 +228,8 @@ export class AppleMapProvider implements MapProvider {
 
   setNativeInteractionsEnabled(enabled: boolean): void {
     if (!this.map) return;
+    // Only toggle scroll - zoom and rotate stay enabled for native handling
     this.map.isScrollEnabled = enabled;
-    this.map.isZoomEnabled = enabled;
-    this.map.isRotateEnabled = enabled;
   }
 
   addMarkers(markers: MapMarker[]): void {
