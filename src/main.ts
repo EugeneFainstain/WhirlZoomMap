@@ -32,6 +32,11 @@ async function main() {
     rotation: config.defaults.rotation,
   });
 
+  // Center on user's current location (zoom 17 ≈ 3 city blocks)
+  mapProvider.centerOnUserLocation(17).catch((err) => {
+    console.warn('Could not center on user location:', err.message);
+  });
+
   // Set up visualization
   const trailVisualizer = new TrailVisualizer(visualizationCanvas);
 

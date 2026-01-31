@@ -42,6 +42,9 @@ export class AppleMapProvider implements MapProvider {
         isScrollEnabled: false,
         isZoomEnabled: true,
         isRotateEnabled: true,
+        // Show user location with blue dot and heading indicator
+        showsUserLocation: true,
+        tracksUserCourse: true,
         // Enable POI selection
         selectableMapFeatures: [
           mapkit.MapFeatureType.PointOfInterest,
@@ -648,6 +651,42 @@ export class AppleMapProvider implements MapProvider {
           polylinePoints,
         });
       });
+    });
+  }
+
+  async centerOnUserLocation(zoom?: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation not supported'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (!this.map) {
+            resolve();
+            return;
+          }
+          const coord = new mapkit.Coordinate(
+            position.coords.latitude,
+            position.coords.longitude
+          );
+          // Set center and zoom together as a region to avoid animation conflicts
+          const zoomLevel = zoom ?? this.getZoom();
+          const span = 360 / Math.pow(2, zoomLevel);
+          const region = new mapkit.CoordinateRegion(
+            coord,
+            new mapkit.CoordinateSpan(span, span)
+          );
+          this.map.setRegionAnimated(region, false);
+          resolve();
+        },
+        (error) => {
+          console.warn('Geolocation error:', error.message);
+          reject(error);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
     });
   }
 
