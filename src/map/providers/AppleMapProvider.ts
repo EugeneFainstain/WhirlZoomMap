@@ -571,11 +571,8 @@ export class AppleMapProvider implements MapProvider {
   private hidePlaceDetail(): void {
     const wrapper = document.getElementById('place-detail-container');
 
-    // Clear any active route
-    if (this.hasActiveRoute) {
-      this.clearRoute();
-      this.hasActiveRoute = false;
-    }
+    // Note: Route is intentionally NOT cleared here - it should remain visible
+    // until a different route is built
 
     // Clear the PlaceDetail
     this.currentPlaceDetail = null;
