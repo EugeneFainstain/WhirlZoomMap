@@ -1,6 +1,5 @@
-import { MapProvider, MapOptions, LatLng, MapBounds, MapMarker, PlaceData, RouteInfo, PlaceHours } from '../types';
+import { MapProvider, MapOptions, LatLng, MapBounds, MapMarker, RouteInfo } from '../types';
 import { config } from '../../config';
-import { PlaceDetailCard } from '../../ui/PlaceDetailCard';
 
 declare const mapkit: any;
 
@@ -10,9 +9,12 @@ export class AppleMapProvider implements MapProvider {
   private markerMap = new Map<any, MapMarker>();
   private markerSelectCallback: ((marker: MapMarker) => void) | null = null;
   private placeDetailContainer: HTMLElement | null = null;
-  private currentPlaceDetailCard: PlaceDetailCard | null = null;
+  private currentPlaceDetail: any = null;
+  private currentPlaceCoordinate: LatLng | null = null;
   private selectedPOI: { id: string; annotation: any; selectedAt: number } | null = null;
   private routeOverlay: any = null;
+  private isLoadingDirections = false;
+  private hasActiveRoute = false;
 
   async init(container: HTMLElement, options: MapOptions): Promise<void> {
     this.container = container;
@@ -64,7 +66,7 @@ export class AppleMapProvider implements MapProvider {
 
       // Also listen for clicks on the container to detect taps on already-selected POI
       container.addEventListener('click', (e: MouseEvent) => {
-        if (!this.selectedPOI || this.currentPlaceDetailCard) return;
+        if (!this.selectedPOI || this.currentPlaceDetail) return;
 
         // Ignore clicks within 100ms of selection (same tap that selected the POI)
         if (Date.now() - this.selectedPOI.selectedAt < 100) return;
@@ -404,7 +406,7 @@ export class AppleMapProvider implements MapProvider {
     wrapper.appendChild(this.placeDetailContainer);
     wrapper.style.display = 'block';
 
-    // Look up the place and create custom PlaceDetailCard
+    // Look up the place
     const lookup = new mapkit.PlaceLookup();
     lookup.getPlace(placeId, (error: any, place: any) => {
       if (error || !place) {
@@ -413,67 +415,171 @@ export class AppleMapProvider implements MapProvider {
         return;
       }
 
-      // Convert MapKit place to our PlaceData format
-      const placeData: PlaceData = {
-        id: placeId,
-        name: place.name || 'Unknown Place',
-        coordinate: {
-          latitude: place.coordinate.latitude,
-          longitude: place.coordinate.longitude,
-        },
-        formattedAddress: place.formattedAddress,
-        telephone: place.telephone,
-        website: place.urls?.[0],
-        hours: this.parseHours(place),
-        pointOfInterestCategory: place.pointOfInterestCategory,
+      // Store place coordinate for directions
+      this.currentPlaceCoordinate = {
+        lat: place.coordinate.latitude,
+        lng: place.coordinate.longitude,
       };
 
       // Clear loading placeholder
       wrapper.innerHTML = '';
 
-      // Create container for custom card
-      const detailContainer = document.createElement('div');
-      wrapper.appendChild(detailContainer);
+      // Create main container
+      const mainContainer = document.createElement('div');
+      mainContainer.className = 'place-detail-hybrid';
+      wrapper.appendChild(mainContainer);
 
-      // Create custom PlaceDetailCard
-      this.currentPlaceDetailCard = new PlaceDetailCard(
-        detailContainer,
-        placeData,
-        this,
-        () => this.hidePlaceDetail()
-      );
+      // Create container for MapKit's PlaceDetail
+      const placeDetailEl = document.createElement('div');
+      placeDetailEl.className = 'mapkit-place-detail-container';
+      mainContainer.appendChild(placeDetailEl);
 
-      this.placeDetailContainer = detailContainer;
+      // Create MapKit PlaceDetail with displaysMap: false (testing if this works)
+      this.currentPlaceDetail = new mapkit.PlaceDetail(placeDetailEl, place, {
+        colorScheme: mapkit.PlaceDetail.ColorSchemes.Adaptive,
+        displaysMap: false,  // Try to hide the map snippet
+      });
+
+      // Add custom directions button row
+      const actionsRow = document.createElement('div');
+      actionsRow.className = 'place-detail-actions';
+      actionsRow.innerHTML = `
+        <button class="place-action-btn directions-btn">
+          🚗 Directions
+        </button>
+        <button class="place-action-btn close-btn">
+          ✕ Close
+        </button>
+      `;
+      mainContainer.appendChild(actionsRow);
+
+      // Add route info container (hidden initially)
+      const routeInfoEl = document.createElement('div');
+      routeInfoEl.className = 'place-detail-route';
+      routeInfoEl.style.display = 'none';
+      mainContainer.insertBefore(routeInfoEl, actionsRow);
+
+      // Bind button events
+      const directionsBtn = actionsRow.querySelector('.directions-btn') as HTMLButtonElement;
+      const closeBtn = actionsRow.querySelector('.close-btn') as HTMLButtonElement;
+
+      directionsBtn.addEventListener('click', () => {
+        if (this.hasActiveRoute) {
+          this.clearRouteAndUpdateUI(routeInfoEl, directionsBtn);
+        } else {
+          this.requestDirectionsAndShow(routeInfoEl, directionsBtn);
+        }
+      });
+
+      closeBtn.addEventListener('click', () => {
+        this.hidePlaceDetail();
+      });
+
+      this.placeDetailContainer = mainContainer;
     });
   }
 
-  private parseHours(place: any): PlaceHours | undefined {
-    // MapKit hours format varies - try to extract useful info
-    if (!place.hours) return undefined;
+  private async requestDirectionsAndShow(
+    routeInfoEl: HTMLElement,
+    directionsBtn: HTMLButtonElement
+  ): Promise<void> {
+    if (this.isLoadingDirections || !this.currentPlaceCoordinate) return;
+
+    this.isLoadingDirections = true;
+    directionsBtn.disabled = true;
+    directionsBtn.textContent = 'Getting directions...';
 
     try {
-      // Check if place has isOpen property
-      const isOpen = place.hours.isOpen?.() ?? false;
+      // Get user's current location
+      const userLocation = await this.getUserLocation();
 
-      // Try to get next open/close time
-      // This is simplified - MapKit's hours API is complex
-      return {
-        isOpen,
-        // MapKit doesn't expose simple closesAt/opensAt, would need more parsing
-      };
-    } catch {
-      return undefined;
+      // Get directions
+      const routeInfo = await this.getDirections(userLocation, this.currentPlaceCoordinate);
+
+      // Show route on map
+      this.showRoute(routeInfo.polylinePoints);
+      this.hasActiveRoute = true;
+
+      // Update UI
+      routeInfoEl.innerHTML = `
+        <span class="route-icon">🚗</span>
+        <span>${this.formatDuration(routeInfo.duration)} · ${this.formatDistance(routeInfo.distance)}</span>
+      `;
+      routeInfoEl.style.display = 'flex';
+      directionsBtn.textContent = 'Clear Route';
+      directionsBtn.disabled = false;
+    } catch (error) {
+      console.warn('Failed to get directions:', error);
+      directionsBtn.textContent = '🚗 Directions';
+      directionsBtn.disabled = false;
+    } finally {
+      this.isLoadingDirections = false;
     }
+  }
+
+  private clearRouteAndUpdateUI(
+    routeInfoEl: HTMLElement,
+    directionsBtn: HTMLButtonElement
+  ): void {
+    this.clearRoute();
+    this.hasActiveRoute = false;
+    routeInfoEl.style.display = 'none';
+    directionsBtn.textContent = '🚗 Directions';
+  }
+
+  private getUserLocation(): Promise<LatLng> {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation not supported'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          reject(error);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  }
+
+  private formatDistance(meters: number): string {
+    const miles = meters / 1609.34;
+    if (miles < 0.1) {
+      const feet = Math.round(meters * 3.28084);
+      return `${feet} ft`;
+    }
+    return `${miles.toFixed(1)} mi`;
+  }
+
+  private formatDuration(seconds: number): string {
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes} min`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    return remainingMins > 0 ? `${hours} hr ${remainingMins} min` : `${hours} hr`;
   }
 
   private hidePlaceDetail(): void {
     const wrapper = document.getElementById('place-detail-container');
 
-    // Destroy the card (which also clears any route)
-    if (this.currentPlaceDetailCard) {
-      this.currentPlaceDetailCard.destroy();
-      this.currentPlaceDetailCard = null;
+    // Clear any active route
+    if (this.hasActiveRoute) {
+      this.clearRoute();
+      this.hasActiveRoute = false;
     }
+
+    // Clear the PlaceDetail
+    this.currentPlaceDetail = null;
+    this.currentPlaceCoordinate = null;
 
     if (wrapper) {
       wrapper.innerHTML = '';

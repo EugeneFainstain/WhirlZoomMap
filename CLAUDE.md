@@ -79,3 +79,19 @@ Browser double-tap-to-zoom is disabled via:
 - JavaScript `touchend` listener that calls `preventDefault()` on rapid successive touches (catches shadow DOM elements like MapKit's PlaceDetail that bypass CSS)
 
 This is necessary because MapKit creates shadow DOM elements that don't inherit the parent's `touch-action` CSS property.
+
+## Apple Developer Documentation
+
+Apple's developer documentation requires JavaScript to render, making it inaccessible to web fetch tools. Use **sosumi.ai** as a proxy to get AI-readable documentation:
+
+**Original URL:**
+```
+https://developer.apple.com/documentation/mapkitjs/mapkit.placedetail
+```
+
+**AI-readable URL:**
+```
+https://sosumi.ai/documentation/mapkitjs/mapkit.placedetail
+```
+
+Simply replace `developer.apple.com` with `sosumi.ai` in the URL path.
