@@ -8,6 +8,8 @@ export class AppleMapProvider implements MapProvider {
   private container: HTMLElement | null = null;
   private markerMap = new Map<any, MapMarker>();
   private markerSelectCallback: ((marker: MapMarker) => void) | null = null;
+  private placeDetailContainer: HTMLElement | null = null;
+  private currentPlaceDetail: any = null;
 
   async init(container: HTMLElement, options: MapOptions): Promise<void> {
     this.container = container;
@@ -42,6 +44,20 @@ export class AppleMapProvider implements MapProvider {
       });
 
       this.setZoom(options.zoom, false);
+
+      // Listen for POI selection events
+      this.map.addEventListener('select', (event: any) => {
+        const ann = event.annotation;
+        if (ann?.id && ann.featureType === 'PointOfInterest') {
+          this.showPlaceDetail(ann.id);
+        }
+      });
+
+      // Listen for deselect to hide the place detail
+      this.map.addEventListener('deselect', () => {
+        this.hidePlaceDetail();
+      });
+
       resolve();
     });
   }
@@ -334,7 +350,48 @@ export class AppleMapProvider implements MapProvider {
     });
   }
 
+  private showPlaceDetail(placeId: string): void {
+    // Get the wrapper container
+    const wrapper = document.getElementById('place-detail-container');
+    if (!wrapper) return;
+
+    // Clear any existing place detail
+    this.hidePlaceDetail();
+
+    // Create a fresh container element (PlaceDetail uses shadow DOM and can't be reused)
+    this.placeDetailContainer = document.createElement('div');
+    wrapper.appendChild(this.placeDetailContainer);
+
+    // Look up the place and create a PlaceDetail
+    const lookup = new mapkit.PlaceLookup();
+    lookup.getPlace(placeId, (error: any, place: any) => {
+      if (error || !place) {
+        console.warn('PlaceLookup error:', error);
+        return;
+      }
+
+      // Create the PlaceDetail card
+      this.currentPlaceDetail = new mapkit.PlaceDetail(this.placeDetailContainer, place, {
+        colorScheme: mapkit.PlaceDetail.ColorSchemes.Adaptive,
+      });
+
+      // Show the wrapper
+      wrapper.style.display = 'block';
+    });
+  }
+
+  private hidePlaceDetail(): void {
+    const wrapper = document.getElementById('place-detail-container');
+    if (wrapper) {
+      wrapper.innerHTML = '';
+      wrapper.style.display = 'none';
+    }
+    this.placeDetailContainer = null;
+    this.currentPlaceDetail = null;
+  }
+
   destroy(): void {
+    this.hidePlaceDetail();
     if (this.map) {
       this.map.destroy();
       this.map = null;

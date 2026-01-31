@@ -224,3 +224,19 @@ html, body {
   align-items: center;
   gap: 5px;
 }
+
+/* Place detail card */
+#place-detail-container {
+  display: none;
+  position: absolute;
+  bottom: 24px;
+  left: 12px;
+  right: 12px;
+  max-width: 400px;
+  margin: 0 auto;
+  z-index: 30;
+  pointer-events: all;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
