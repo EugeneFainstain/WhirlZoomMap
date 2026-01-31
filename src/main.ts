@@ -6,6 +6,16 @@ import { MapControls } from './ui/MapControls';
 import { SearchBar } from './ui/SearchBar';
 import { TrailVisualizer } from './visualization/TrailVisualizer';
 
+// Prevent browser double-tap-to-zoom (shadow DOM elements bypass CSS touch-action)
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) {
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, { passive: false });
+
 async function main() {
   const mapContainer = document.getElementById('map-container')!;
   const interactionElement = document.getElementById('interaction-layer')!;

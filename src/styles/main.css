@@ -2,6 +2,8 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  /* Disable browser double-tap-to-zoom on ALL elements (including MapKit's dynamic POI overlays) */
+  touch-action: manipulation;
 }
 
 html, body {
