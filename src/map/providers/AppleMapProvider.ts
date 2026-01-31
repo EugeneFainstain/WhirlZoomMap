@@ -10,6 +10,7 @@ export class AppleMapProvider implements MapProvider {
   private markerSelectCallback: ((marker: MapMarker) => void) | null = null;
   private placeDetailContainer: HTMLElement | null = null;
   private currentPlaceDetail: any = null;
+  private selectedPOI: { id: string; annotation: any; selectedAt: number } | null = null;
 
   async init(container: HTMLElement, options: MapOptions): Promise<void> {
     this.container = container;
@@ -45,16 +46,44 @@ export class AppleMapProvider implements MapProvider {
 
       this.setZoom(options.zoom, false);
 
-      // Listen for POI selection events
+      // Listen for POI selection events - just track, don't show card yet
       this.map.addEventListener('select', (event: any) => {
         const ann = event.annotation;
         if (ann?.id && ann.featureType === 'PointOfInterest') {
-          this.showPlaceDetail(ann.id);
+          // If tapping on already-selected POI, show the card
+          if (this.selectedPOI?.id === ann.id) {
+            this.showPlaceDetail(ann.id);
+          } else {
+            // First tap - just track, don't show card
+            this.selectedPOI = { id: ann.id, annotation: ann, selectedAt: Date.now() };
+          }
+        }
+      });
+
+      // Also listen for clicks on the container to detect taps on already-selected POI
+      container.addEventListener('click', (e: MouseEvent) => {
+        if (!this.selectedPOI || this.currentPlaceDetail) return;
+
+        // Ignore clicks within 100ms of selection (same tap that selected the POI)
+        if (Date.now() - this.selectedPOI.selectedAt < 100) return;
+
+        // Check if click was near the selected annotation
+        const annCoord = this.selectedPOI.annotation.coordinate;
+        const annPoint = this.map.convertCoordinateToPointOnPage(annCoord);
+
+        const dx = e.pageX - annPoint.x;
+        const dy = e.pageY - annPoint.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // If click is within 50px of the annotation center, show the card
+        if (distance < 50) {
+          this.showPlaceDetail(this.selectedPOI.id);
         }
       });
 
       // Listen for deselect to hide the place detail
       this.map.addEventListener('deselect', () => {
+        this.selectedPOI = null;
         this.hidePlaceDetail();
       });
 
