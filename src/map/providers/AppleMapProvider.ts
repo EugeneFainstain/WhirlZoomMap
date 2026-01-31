@@ -68,15 +68,18 @@ export class AppleMapProvider implements MapProvider {
         if (Date.now() - this.selectedPOI.selectedAt < 100) return;
 
         // Check if click was near the selected annotation
+        // The enlarged POI icon is displayed ABOVE the coordinate point (pin tip),
+        // so we offset Y upward by ~35px to match the visual icon center
         const annCoord = this.selectedPOI.annotation.coordinate;
         const annPoint = this.map.convertCoordinateToPointOnPage(annCoord);
+        const iconCenterY = annPoint.y - 35;
 
         const dx = e.pageX - annPoint.x;
-        const dy = e.pageY - annPoint.y;
+        const dy = e.pageY - iconCenterY;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // If click is within 50px of the annotation center, show the card
-        if (distance < 50) {
+        // If click is within 45px of the icon center, show the card
+        if (distance < 45) {
           this.showPlaceDetail(this.selectedPOI.id);
         }
       });
@@ -387,25 +390,38 @@ export class AppleMapProvider implements MapProvider {
     // Clear any existing place detail
     this.hidePlaceDetail();
 
-    // Create a fresh container element (PlaceDetail uses shadow DOM and can't be reused)
+    // Show loading placeholder immediately
     this.placeDetailContainer = document.createElement('div');
+    this.placeDetailContainer.className = 'place-detail-loading';
+    this.placeDetailContainer.innerHTML = `
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+      </div>
+    `;
     wrapper.appendChild(this.placeDetailContainer);
+    wrapper.style.display = 'block';
 
-    // Look up the place and create a PlaceDetail
+    // Look up the place and replace with real PlaceDetail
     const lookup = new mapkit.PlaceLookup();
     lookup.getPlace(placeId, (error: any, place: any) => {
       if (error || !place) {
         console.warn('PlaceLookup error:', error);
+        this.hidePlaceDetail();
         return;
       }
 
-      // Create the PlaceDetail card
-      this.currentPlaceDetail = new mapkit.PlaceDetail(this.placeDetailContainer, place, {
+      // Create a fresh container for PlaceDetail (loading stays as background layer)
+      const detailContainer = document.createElement('div');
+      detailContainer.style.position = 'relative';
+      detailContainer.style.zIndex = '1';
+      wrapper.appendChild(detailContainer);
+
+      this.currentPlaceDetail = new mapkit.PlaceDetail(detailContainer, place, {
         colorScheme: mapkit.PlaceDetail.ColorSchemes.Adaptive,
       });
 
-      // Show the wrapper
-      wrapper.style.display = 'block';
+      this.placeDetailContainer = detailContainer;
     });
   }
 

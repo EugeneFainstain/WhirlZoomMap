@@ -58,3 +58,24 @@ Using a static domain-restricted token from the Apple Developer portal (no backe
 2. Add the type to `MapProviderType` in `src/map/types.ts`
 3. Add a case in `MapProviderFactory.ts`
 4. Change the provider type in `src/main.ts`
+
+## POI Selection UX
+
+POI (Point of Interest) interaction uses a two-tap pattern for better mobile UX:
+
+1. **First tap** on POI → enlarges/selects it (MapKit default behavior)
+2. **Second tap** on enlarged POI → shows the PlaceDetail card with loading state
+
+This avoids accidental card popups when users just want to see the POI name. The hit detection for the second tap accounts for the POI icon being visually displayed ~35px above its coordinate point (pin tip vs icon center).
+
+### Loading State
+The PlaceDetail card shows a loading placeholder immediately on tap, then overlays the real content when MapKit's `PlaceLookup` completes. The loading placeholder stays as a background layer to prevent visual flicker.
+
+## Mobile Touch Handling
+
+### Double-tap-to-zoom Prevention
+Browser double-tap-to-zoom is disabled via:
+- CSS `touch-action: manipulation` on all elements (catches most cases)
+- JavaScript `touchend` listener that calls `preventDefault()` on rapid successive touches (catches shadow DOM elements like MapKit's PlaceDetail that bypass CSS)
+
+This is necessary because MapKit creates shadow DOM elements that don't inherit the parent's `touch-action` CSS property.
