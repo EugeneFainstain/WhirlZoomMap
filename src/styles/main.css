@@ -278,3 +278,160 @@ html, body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Custom Place Detail Card */
+.place-detail-card {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.place-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.place-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.place-name-container {
+  flex: 1;
+  min-width: 0;
+}
+
+.place-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.place-close-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: #f0f0f0;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.place-close-btn:hover {
+  background: #e0e0e0;
+}
+
+/* Route summary */
+.place-detail-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #e8f4fd;
+  color: #0066cc;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.place-detail-route.loading {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.route-icon {
+  font-size: 16px;
+}
+
+/* Info rows */
+.place-detail-info {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: #333;
+}
+
+.info-row.clickable {
+  cursor: pointer;
+}
+
+.info-icon {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.info-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.info-text.open {
+  color: #2e7d32;
+}
+
+.info-text.closed {
+  color: #c62828;
+}
+
+.info-link {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+.info-link:hover {
+  text-decoration: underline;
+}
+
+/* Action buttons */
+.place-detail-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.place-action-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.place-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.directions-btn {
+  background: #0066cc;
+  color: white;
+}
+
+.directions-btn:hover:not(:disabled) {
+  background: #0052a3;
+}

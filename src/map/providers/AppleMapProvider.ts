@@ -1,5 +1,6 @@
-import { MapProvider, MapOptions, LatLng, MapBounds, MapMarker } from '../types';
+import { MapProvider, MapOptions, LatLng, MapBounds, MapMarker, PlaceData, RouteInfo, PlaceHours } from '../types';
 import { config } from '../../config';
+import { PlaceDetailCard } from '../../ui/PlaceDetailCard';
 
 declare const mapkit: any;
 
@@ -9,8 +10,9 @@ export class AppleMapProvider implements MapProvider {
   private markerMap = new Map<any, MapMarker>();
   private markerSelectCallback: ((marker: MapMarker) => void) | null = null;
   private placeDetailContainer: HTMLElement | null = null;
-  private currentPlaceDetail: any = null;
+  private currentPlaceDetailCard: PlaceDetailCard | null = null;
   private selectedPOI: { id: string; annotation: any; selectedAt: number } | null = null;
+  private routeOverlay: any = null;
 
   async init(container: HTMLElement, options: MapOptions): Promise<void> {
     this.container = container;
@@ -62,7 +64,7 @@ export class AppleMapProvider implements MapProvider {
 
       // Also listen for clicks on the container to detect taps on already-selected POI
       container.addEventListener('click', (e: MouseEvent) => {
-        if (!this.selectedPOI || this.currentPlaceDetail) return;
+        if (!this.selectedPOI || this.currentPlaceDetailCard) return;
 
         // Ignore clicks within 100ms of selection (same tap that selected the POI)
         if (Date.now() - this.selectedPOI.selectedAt < 100) return;
@@ -402,7 +404,7 @@ export class AppleMapProvider implements MapProvider {
     wrapper.appendChild(this.placeDetailContainer);
     wrapper.style.display = 'block';
 
-    // Look up the place and replace with real PlaceDetail
+    // Look up the place and create custom PlaceDetailCard
     const lookup = new mapkit.PlaceLookup();
     lookup.getPlace(placeId, (error: any, place: any) => {
       if (error || !place) {
@@ -411,32 +413,144 @@ export class AppleMapProvider implements MapProvider {
         return;
       }
 
-      // Create a fresh container for PlaceDetail (loading stays as background layer)
+      // Convert MapKit place to our PlaceData format
+      const placeData: PlaceData = {
+        id: placeId,
+        name: place.name || 'Unknown Place',
+        coordinate: {
+          latitude: place.coordinate.latitude,
+          longitude: place.coordinate.longitude,
+        },
+        formattedAddress: place.formattedAddress,
+        telephone: place.telephone,
+        website: place.urls?.[0],
+        hours: this.parseHours(place),
+        pointOfInterestCategory: place.pointOfInterestCategory,
+      };
+
+      // Clear loading placeholder
+      wrapper.innerHTML = '';
+
+      // Create container for custom card
       const detailContainer = document.createElement('div');
-      detailContainer.style.position = 'relative';
-      detailContainer.style.zIndex = '1';
       wrapper.appendChild(detailContainer);
 
-      this.currentPlaceDetail = new mapkit.PlaceDetail(detailContainer, place, {
-        colorScheme: mapkit.PlaceDetail.ColorSchemes.Adaptive,
-      });
+      // Create custom PlaceDetailCard
+      this.currentPlaceDetailCard = new PlaceDetailCard(
+        detailContainer,
+        placeData,
+        this,
+        () => this.hidePlaceDetail()
+      );
 
       this.placeDetailContainer = detailContainer;
     });
   }
 
+  private parseHours(place: any): PlaceHours | undefined {
+    // MapKit hours format varies - try to extract useful info
+    if (!place.hours) return undefined;
+
+    try {
+      // Check if place has isOpen property
+      const isOpen = place.hours.isOpen?.() ?? false;
+
+      // Try to get next open/close time
+      // This is simplified - MapKit's hours API is complex
+      return {
+        isOpen,
+        // MapKit doesn't expose simple closesAt/opensAt, would need more parsing
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
   private hidePlaceDetail(): void {
     const wrapper = document.getElementById('place-detail-container');
+
+    // Destroy the card (which also clears any route)
+    if (this.currentPlaceDetailCard) {
+      this.currentPlaceDetailCard.destroy();
+      this.currentPlaceDetailCard = null;
+    }
+
     if (wrapper) {
       wrapper.innerHTML = '';
       wrapper.style.display = 'none';
     }
     this.placeDetailContainer = null;
-    this.currentPlaceDetail = null;
+  }
+
+  showRoute(points: LatLng[]): void {
+    if (!this.map || points.length < 2) return;
+
+    // Clear any existing route
+    this.clearRoute();
+
+    // Convert LatLng array to MapKit coordinates
+    const coordinates = points.map(
+      (p) => new mapkit.Coordinate(p.lat, p.lng)
+    );
+
+    // Create polyline overlay
+    const style = new mapkit.Style({
+      lineWidth: 5,
+      strokeColor: '#007AFF',
+      strokeOpacity: 0.8,
+    });
+
+    this.routeOverlay = new mapkit.PolylineOverlay(coordinates, { style });
+    this.map.addOverlay(this.routeOverlay);
+  }
+
+  clearRoute(): void {
+    if (!this.map || !this.routeOverlay) return;
+    this.map.removeOverlay(this.routeOverlay);
+    this.routeOverlay = null;
+  }
+
+  async getDirections(from: LatLng, to: LatLng): Promise<RouteInfo> {
+    return new Promise((resolve, reject) => {
+      const directions = new mapkit.Directions();
+
+      const request = {
+        origin: new mapkit.Coordinate(from.lat, from.lng),
+        destination: new mapkit.Coordinate(to.lat, to.lng),
+        transportType: mapkit.Directions.Transport.Automobile,
+      };
+
+      directions.route(request, (error: any, response: any) => {
+        if (error || !response?.routes?.length) {
+          reject(new Error(error?.message || 'Failed to get directions'));
+          return;
+        }
+
+        const route = response.routes[0];
+
+        // Extract polyline points from the route
+        const polylinePoints: LatLng[] = [];
+        if (route.polyline?.points) {
+          for (const coord of route.polyline.points) {
+            polylinePoints.push({
+              lat: coord.latitude,
+              lng: coord.longitude,
+            });
+          }
+        }
+
+        resolve({
+          distance: route.distance, // meters
+          duration: route.expectedTravelTime, // seconds
+          polylinePoints,
+        });
+      });
+    });
   }
 
   destroy(): void {
     this.hidePlaceDetail();
+    this.clearRoute();
     if (this.map) {
       this.map.destroy();
       this.map = null;

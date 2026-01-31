@@ -3,6 +3,29 @@ export interface LatLng {
   lng: number;
 }
 
+export interface PlaceData {
+  id: string;
+  name: string;
+  coordinate: { latitude: number; longitude: number };
+  formattedAddress?: string;
+  telephone?: string;
+  website?: string;
+  hours?: PlaceHours;
+  pointOfInterestCategory?: string;
+}
+
+export interface PlaceHours {
+  isOpen: boolean;
+  closesAt?: string;  // e.g., "9:00 PM"
+  opensAt?: string;   // e.g., "8:00 AM"
+}
+
+export interface RouteInfo {
+  distance: number;      // meters
+  duration: number;      // seconds
+  polylinePoints: LatLng[];
+}
+
 export interface MapBounds {
   north: number;
   south: number;
@@ -42,6 +65,9 @@ export interface MapProvider {
   filterPOIByCategories(categories: string[]): void;
   clearPOIFilter(): void;
   searchPOIsInView(categories: string[], maxResults: number): Promise<MapMarker[]>;
+  showRoute(points: LatLng[]): void;
+  clearRoute(): void;
+  getDirections(from: LatLng, to: LatLng): Promise<RouteInfo>;
   destroy(): void;
 }
 

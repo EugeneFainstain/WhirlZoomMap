@@ -291,6 +291,7 @@ export class SearchBar {
 
   private clearPOIFilter(): void {
     this.mapProvider.clearPOIFilter();
+
     this.isFiltered = false;
   }
 
