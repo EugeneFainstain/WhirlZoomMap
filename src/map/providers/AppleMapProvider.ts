@@ -448,35 +448,57 @@ export class AppleMapProvider implements MapProvider {
         displaysMap: false,  // Try to hide the map snippet
       });
 
-      // Add custom directions button row
-      const actionsRow = document.createElement('div');
-      actionsRow.className = 'place-detail-actions';
-      actionsRow.innerHTML = `
-        <button class="place-action-btn directions-btn">
-          🚗 Directions
-        </button>
-        <button class="place-action-btn close-btn">
-          ✕ Close
-        </button>
-      `;
-      mainContainer.appendChild(actionsRow);
-
       // Add route info container (hidden initially)
       const routeInfoEl = document.createElement('div');
       routeInfoEl.className = 'place-detail-route';
       routeInfoEl.style.display = 'none';
-      mainContainer.insertBefore(routeInfoEl, actionsRow);
+      mainContainer.appendChild(routeInfoEl);
+
+      // Add custom directions button row with 3 transport options (car, bike, walk order)
+      const actionsRow = document.createElement('div');
+      actionsRow.className = 'place-detail-actions';
+      actionsRow.innerHTML = `
+        <button class="direction-type-btn" data-transport="Automobile">
+          <svg class="transport-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+          </svg>
+          <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </button>
+        <button class="direction-type-btn" data-transport="Cycling">
+          <svg class="transport-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm5.8-10l2.4 2.4-2.4 2.4V19h2v-3.1l2.1-2.1 2.6 5.2h2.2l-3.5-7 1.6-1.6c.6.6 1.4 1.1 2.3 1.3l.4-2c-.6-.1-1.1-.4-1.5-.8l-1.6-1.6c-.4-.4-.9-.6-1.4-.6s-1 .2-1.3.5L10.2 11H7v2h4.3l-.5-.5zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
+          </svg>
+          <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </button>
+        <button class="direction-type-btn" data-transport="Walking">
+          <svg class="transport-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
+          </svg>
+          <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </button>
+        <button class="close-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      `;
+      mainContainer.appendChild(actionsRow);
 
       // Bind button events
-      const directionsBtn = actionsRow.querySelector('.directions-btn') as HTMLButtonElement;
+      const directionBtns = actionsRow.querySelectorAll('.direction-type-btn');
       const closeBtn = actionsRow.querySelector('.close-btn') as HTMLButtonElement;
 
-      directionsBtn.addEventListener('click', () => {
-        if (this.hasActiveRoute) {
-          this.clearRouteAndUpdateUI(routeInfoEl, directionsBtn);
-        } else {
-          this.requestDirectionsAndShow(routeInfoEl, directionsBtn);
-        }
+      directionBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const transport = (btn as HTMLElement).dataset.transport || 'Automobile';
+          this.requestDirectionsWithTransport(transport, routeInfoEl, directionBtns, btn as HTMLButtonElement);
+        });
       });
 
       closeBtn.addEventListener('click', () => {
@@ -593,7 +615,89 @@ export class AppleMapProvider implements MapProvider {
     this.placeDetailContainer = null;
   }
 
-  showRoute(points: LatLng[]): void {
+  private async requestDirectionsWithTransport(
+    transport: string,
+    routeInfoEl: HTMLElement,
+    allBtns: NodeListOf<Element>,
+    activeBtn: HTMLButtonElement
+  ): Promise<void> {
+    if (this.isLoadingDirections || !this.currentPlaceCoordinate) return;
+
+    this.isLoadingDirections = true;
+
+    // Disable all direction buttons while loading
+    allBtns.forEach((btn) => (btn as HTMLButtonElement).disabled = true);
+
+    try {
+      const userLocation = await this.getUserLocation();
+      const routeInfo = await this.getDirectionsWithTransport(userLocation, this.currentPlaceCoordinate, transport);
+
+      // Show route on map with transport-specific styling
+      this.showRoute(routeInfo.polylinePoints, transport);
+      this.hasActiveRoute = true;
+
+      // Mark the active button as selected (show checkmark)
+      allBtns.forEach((btn) => btn.classList.remove('selected'));
+      activeBtn.classList.add('selected');
+
+      // Update route info display
+      routeInfoEl.innerHTML = `
+        <span>${this.formatDuration(routeInfo.duration)} · ${this.formatDistance(routeInfo.distance)}</span>
+      `;
+      routeInfoEl.style.display = 'flex';
+    } catch (error) {
+      console.warn('Failed to get directions:', error);
+    } finally {
+      this.isLoadingDirections = false;
+      allBtns.forEach((btn) => (btn as HTMLButtonElement).disabled = false);
+    }
+  }
+
+  private async getDirectionsWithTransport(from: LatLng, to: LatLng, transport: string): Promise<RouteInfo> {
+    return new Promise((resolve, reject) => {
+      const directions = new mapkit.Directions();
+
+      // Map transport string to MapKit transport type
+      let transportType = mapkit.Directions.Transport.Automobile;
+      if (transport === 'Walking') {
+        transportType = mapkit.Directions.Transport.Walking;
+      } else if (transport === 'Cycling') {
+        transportType = mapkit.Directions.Transport.Cycling;
+      }
+
+      const request = {
+        origin: new mapkit.Coordinate(from.lat, from.lng),
+        destination: new mapkit.Coordinate(to.lat, to.lng),
+        transportType,
+      };
+
+      directions.route(request, (error: any, response: any) => {
+        if (error || !response?.routes?.length) {
+          reject(new Error(error?.message || 'Failed to get directions'));
+          return;
+        }
+
+        const route = response.routes[0];
+        const polylinePoints: LatLng[] = [];
+        if (route.polyline?.points) {
+          for (const coord of route.polyline.points) {
+            polylinePoints.push({
+              lat: coord.latitude,
+              lng: coord.longitude,
+            });
+          }
+        }
+
+        resolve({
+          distance: route.distance,
+          duration: route.expectedTravelTime,
+          polylinePoints,
+        });
+      });
+    });
+  }
+
+  showRoute(points: LatLng[], transport: string = 'Automobile'): void {
     if (!this.map || points.length < 2) return;
 
     // Clear any existing route
@@ -604,12 +708,25 @@ export class AppleMapProvider implements MapProvider {
       (p) => new mapkit.Coordinate(p.lat, p.lng)
     );
 
-    // Create polyline overlay
-    const style = new mapkit.Style({
-      lineWidth: 5,
+    // Create style based on transport type
+    const styleOptions: any = {
+      lineWidth: 6,
       strokeColor: '#007AFF',
-      strokeOpacity: 0.8,
-    });
+      strokeOpacity: 0.9,
+    };
+
+    if (transport === 'Walking') {
+      // Dotted line (small circles) for walking
+      styleOptions.lineDash = [1, 15];
+      styleOptions.lineCap = 'round';
+    } else if (transport === 'Cycling') {
+      // Dashed line for cycling
+      styleOptions.lineDash = [8, 12];
+      styleOptions.lineCap = 'round';
+    }
+    // Automobile uses solid line (no lineDash)
+
+    const style = new mapkit.Style(styleOptions);
 
     this.routeOverlay = new mapkit.PolylineOverlay(coordinates, { style });
     this.map.addOverlay(this.routeOverlay);

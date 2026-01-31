@@ -317,43 +317,72 @@ html, body {
 /* Action buttons */
 .place-detail-actions {
   display: flex;
-  gap: 8px;
-  padding: 10px 14px 14px;
-  border-top: 1px solid #f0f0f0;
+  gap: 10px;
+  padding: 12px 14px 14px;
 }
 
-.place-action-btn {
+/* Direction type buttons (Drive, Bike, Walk) - Apple Maps style */
+.direction-type-btn {
   flex: 1;
-  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 44px;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: 22px;
+  background: #007AFF;
+  color: white;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color 0.15s, opacity 0.15s;
 }
 
-.place-action-btn:disabled {
+.direction-type-btn:hover {
+  background: #0066d6;
+}
+
+.direction-type-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.directions-btn {
-  background: #0066cc;
-  color: white;
+.direction-type-btn .transport-icon {
+  width: 24px;
+  height: 24px;
 }
 
-.directions-btn:hover:not(:disabled) {
-  background: #0052a3;
+.direction-type-btn .check-icon {
+  display: none;
+  margin-left: 4px;
+  width: 18px;
+  height: 18px;
 }
 
+.direction-type-btn.selected .check-icon {
+  display: block;
+}
+
+/* Close button */
 .close-btn {
-  background: #f0f0f0;
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 22px;
+  background: #e5e5e5;
   color: #666;
-  flex: 0 0 auto;
-  padding: 10px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s;
 }
 
 .close-btn:hover {
-  background: #e0e0e0;
+  background: #d5d5d5;
+}
+
+.close-btn svg {
+  width: 20px;
+  height: 20px;
 }
