@@ -308,7 +308,7 @@ export class PassThroughHandler implements InteractionHandler {
     mapProvider.zoomAtPoint(e.offsetX, e.offsetY, zoomDelta);
   }
 
-  private stopInertia(): void {
+  stopInertia(): void {
     if (this.inertiaAnimationId !== null) {
       cancelAnimationFrame(this.inertiaAnimationId);
       this.inertiaAnimationId = null;

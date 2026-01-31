@@ -133,7 +133,7 @@ html, body {
 #map-controls-container {
   pointer-events: all;
   position: absolute;
-  bottom: 24px;
+  bottom: 12px;
   right: 12px;
   display: flex;
   flex-direction: column;
@@ -161,6 +161,12 @@ html, body {
 
 .map-control-btn:active {
   background: #e8e8e8;
+}
+
+.map-control-btn-large {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
 }
 
 .compass-btn {

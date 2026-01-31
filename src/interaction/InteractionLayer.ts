@@ -47,6 +47,12 @@ export class InteractionLayer {
   private onPointerDown = (e: PointerEvent): void => {
     if (!this.enabled || !this.isEventOnMap(e)) return;
 
+    // Skip interactive elements entirely - let their click handlers work
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, [role="button"]')) {
+      return;
+    }
+
     this.activePointers.add(e.pointerId);
     this.handler.onPointerDown(e, this.mapProvider, this.element);
   };

@@ -10,7 +10,9 @@ import { TrailVisualizer } from './visualization/TrailVisualizer';
 let lastTouchEnd = 0;
 document.addEventListener('touchend', (e) => {
   const now = Date.now();
-  if (now - lastTouchEnd <= 300) {
+  const target = e.target as HTMLElement;
+  const isInteractive = target.closest('button, a, input, [role="button"]');
+  if (now - lastTouchEnd <= 300 && !isInteractive) {
     e.preventDefault();
   }
   lastTouchEnd = now;
@@ -47,7 +49,7 @@ async function main() {
   const interactionLayer = new InteractionLayer(interactionElement, handler, mapProvider);
 
   // Set up UI
-  const mapControls = new MapControls(controlsContainer, mapProvider);
+  const mapControls = new MapControls(controlsContainer, mapProvider, handler);
   const searchBar = new SearchBar(searchContainer, mapProvider);
 
   // Native mode toggle

@@ -15,6 +15,8 @@ export class AppleMapProvider implements MapProvider {
   private routeOverlay: any = null;
   private isLoadingDirections = false;
   private hasActiveRoute = false;
+  private cachedUserLocation: LatLng | null = null;
+  private locationWatchId: number | null = null;
 
   async init(container: HTMLElement, options: MapOptions): Promise<void> {
     this.container = container;
@@ -99,6 +101,9 @@ export class AppleMapProvider implements MapProvider {
 
       resolve();
     });
+
+    // Start watching user location (wait for initial position)
+    await this.startLocationTracking();
   }
 
   private waitForMapKit(): Promise<void> {
@@ -654,7 +659,64 @@ export class AppleMapProvider implements MapProvider {
     });
   }
 
+  private async startLocationTracking(): Promise<void> {
+    if (!navigator.geolocation) return;
+
+    // Get fast network-based position first (low accuracy but instant)
+    await new Promise<void>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          this.cachedUserLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          resolve();
+        },
+        () => resolve(), // Resolve anyway on error, don't block
+        { enableHighAccuracy: false, maximumAge: Infinity, timeout: 3000 }
+      );
+    });
+
+    // Watch for position updates (will refine with GPS over time)
+    this.locationWatchId = navigator.geolocation.watchPosition(
+      (position) => {
+        this.cachedUserLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+      },
+      () => {}, // Ignore errors for background tracking
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+    );
+  }
+
+  private stopLocationTracking(): void {
+    if (this.locationWatchId !== null) {
+      navigator.geolocation.clearWatch(this.locationWatchId);
+      this.locationWatchId = null;
+    }
+  }
+
   async centerOnUserLocation(zoom?: number): Promise<void> {
+    if (!this.map) return;
+
+    // Use cached location if available for instant response
+    if (this.cachedUserLocation) {
+      const coord = new mapkit.Coordinate(
+        this.cachedUserLocation.lat,
+        this.cachedUserLocation.lng
+      );
+      const zoomLevel = zoom ?? this.getZoom();
+      const span = 360 / Math.pow(2, zoomLevel);
+      const region = new mapkit.CoordinateRegion(
+        coord,
+        new mapkit.CoordinateSpan(span, span)
+      );
+      this.map.setRegionAnimated(region, true);
+      return;
+    }
+
+    // Fallback to fresh query if no cached location
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
         reject(new Error('Geolocation not supported'));
@@ -667,30 +729,34 @@ export class AppleMapProvider implements MapProvider {
             resolve();
             return;
           }
+          this.cachedUserLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
           const coord = new mapkit.Coordinate(
             position.coords.latitude,
             position.coords.longitude
           );
-          // Set center and zoom together as a region to avoid animation conflicts
           const zoomLevel = zoom ?? this.getZoom();
           const span = 360 / Math.pow(2, zoomLevel);
           const region = new mapkit.CoordinateRegion(
             coord,
             new mapkit.CoordinateSpan(span, span)
           );
-          this.map.setRegionAnimated(region, false);
+          this.map.setRegionAnimated(region, true);
           resolve();
         },
         (error) => {
           console.warn('Geolocation error:', error.message);
           reject(error);
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: false, maximumAge: 0, timeout: 5000 }
       );
     });
   }
 
   destroy(): void {
+    this.stopLocationTracking();
     this.hidePlaceDetail();
     this.clearRoute();
     if (this.map) {
