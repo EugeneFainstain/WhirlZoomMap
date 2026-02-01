@@ -330,6 +330,23 @@ html, body {
   /* Let MapKit's PlaceDetail render inside */
 }
 
+.simple-address-card {
+  padding: 16px;
+}
+
+.simple-address-card .address-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin-bottom: 4px;
+}
+
+.simple-address-card .address-subtitle {
+  font-size: 14px;
+  color: #86868b;
+  line-height: 1.4;
+}
+
 /* Route summary */
 .place-detail-route {
   display: flex;

@@ -400,14 +400,13 @@ export class SearchBar {
       this.mapProvider.setCenter(place.coordinate.latitude, place.coordinate.longitude);
       this.mapProvider.setZoom(15);
 
-      // Add a pin with the placeId so clicking it shows PlaceDetail
+      // Add a pin - use simple address card (no placeId) since we have the data
       this.mapProvider.addMarkers([{
         id: place.id || `search-${Date.now()}`,
         lat: place.coordinate.latitude,
         lng: place.coordinate.longitude,
         title: place.name || query,
         subtitle: place.formattedAddress || '',
-        placeId: place.id,
       }]);
     }, { region });
   }

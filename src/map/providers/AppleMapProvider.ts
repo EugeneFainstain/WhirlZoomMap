@@ -96,11 +96,8 @@ export class AppleMapProvider implements MapProvider {
           }
         }
 
-        // Check for selected marker with placeId
-        if (this.selectedMarker?.marker.placeId) {
-          // Ignore clicks within 100ms of selection (same tap that selected the marker)
-          if (Date.now() - this.selectedMarker.selectedAt < 100) return;
-
+        // Check for selected marker (with or without placeId) - single tap opens card
+        if (this.selectedMarker) {
           const annCoord = this.selectedMarker.annotation.coordinate;
           const annPoint = this.map.convertCoordinateToPointOnPage(annCoord);
           const iconCenterY = annPoint.y - 35;
@@ -110,7 +107,12 @@ export class AppleMapProvider implements MapProvider {
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < 45) {
-            this.showPlaceDetail(this.selectedMarker.marker.placeId);
+            const marker = this.selectedMarker.marker;
+            if (marker.placeId) {
+              this.showPlaceDetail(marker.placeId, marker);
+            } else {
+              this.showSimpleAddressCard(marker);
+            }
           }
         }
       });
@@ -338,13 +340,15 @@ export class AppleMapProvider implements MapProvider {
       const annotation = event.annotation;
       const marker = this.markerMap.get(annotation);
       if (marker) {
-        if (marker.placeId) {
-          // Two-tap pattern for markers with placeId (like POIs)
-          if (this.selectedMarker?.marker.id === marker.id) {
-            this.showPlaceDetail(marker.placeId);
+        // Two-tap pattern for all markers (like POIs)
+        if (this.selectedMarker?.marker.id === marker.id) {
+          if (marker.placeId) {
+            this.showPlaceDetail(marker.placeId, marker);
           } else {
-            this.selectedMarker = { marker, annotation, selectedAt: Date.now() };
+            this.showSimpleAddressCard(marker);
           }
+        } else {
+          this.selectedMarker = { marker, annotation, selectedAt: Date.now() };
         }
         if (this.markerSelectCallback) {
           this.markerSelectCallback(marker);
@@ -427,7 +431,7 @@ export class AppleMapProvider implements MapProvider {
     });
   }
 
-  private showPlaceDetail(placeId: string): void {
+  private showPlaceDetail(placeId: string, fallbackMarker?: MapMarker): void {
     // Get the wrapper container
     const wrapper = document.getElementById('place-detail-container');
     if (!wrapper) return;
@@ -452,7 +456,12 @@ export class AppleMapProvider implements MapProvider {
     lookup.getPlace(placeId, (error: any, place: any) => {
       if (error || !place) {
         console.warn('PlaceLookup error:', error);
-        this.hidePlaceDetail();
+        // If we have fallback marker data, show a simple address card instead
+        if (fallbackMarker) {
+          this.showSimpleAddressCard(fallbackMarker);
+        } else {
+          this.hidePlaceDetail();
+        }
         return;
       }
 
@@ -646,6 +655,94 @@ export class AppleMapProvider implements MapProvider {
       wrapper.style.display = 'none';
     }
     this.placeDetailContainer = null;
+  }
+
+  private showSimpleAddressCard(marker: MapMarker): void {
+    const wrapper = document.getElementById('place-detail-container');
+    if (!wrapper) return;
+
+    // Store coordinate for directions
+    this.currentPlaceCoordinate = {
+      lat: marker.lat,
+      lng: marker.lng,
+    };
+
+    // Show wrapper and clear content
+    wrapper.style.display = 'block';
+    wrapper.innerHTML = '';
+
+    // Create main container
+    const mainContainer = document.createElement('div');
+    mainContainer.className = 'place-detail-hybrid';
+    wrapper.appendChild(mainContainer);
+
+    // Create simple address display (instead of MapKit PlaceDetail)
+    const addressEl = document.createElement('div');
+    addressEl.className = 'simple-address-card';
+    addressEl.innerHTML = `
+      <div class="address-title">${marker.title}</div>
+      ${marker.subtitle ? `<div class="address-subtitle">${marker.subtitle}</div>` : ''}
+    `;
+    mainContainer.appendChild(addressEl);
+
+    // Add route info container (hidden initially)
+    const routeInfoEl = document.createElement('div');
+    routeInfoEl.className = 'place-detail-route';
+    routeInfoEl.style.display = 'none';
+    mainContainer.appendChild(routeInfoEl);
+
+    // Add custom directions button row (same as full PlaceDetail)
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'place-detail-actions';
+    actionsRow.innerHTML = `
+      <button class="direction-type-btn" data-transport="Automobile">
+        <svg class="transport-icon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+        </svg>
+        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+      <button class="direction-type-btn" data-transport="Cycling">
+        <svg class="transport-icon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm5.8-10l2.4 2.4-2.4 2.4V19h2v-3.1l2.1-2.1 2.6 5.2h2.2l-3.5-7 1.6-1.6c.6.6 1.4 1.1 2.3 1.3l.4-2c-.6-.1-1.1-.4-1.5-.8l-1.6-1.6c-.4-.4-.9-.6-1.4-.6s-1 .2-1.3.5L10.2 11H7v2h4.3l-.5-.5zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
+        </svg>
+        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+      <button class="direction-type-btn" data-transport="Walking">
+        <svg class="transport-icon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
+        </svg>
+        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+      <button class="close-btn">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    `;
+    mainContainer.appendChild(actionsRow);
+
+    // Bind button events
+    const directionBtns = actionsRow.querySelectorAll('.direction-type-btn');
+    const closeBtn = actionsRow.querySelector('.close-btn') as HTMLButtonElement;
+
+    directionBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const transport = (btn as HTMLElement).dataset.transport || 'Automobile';
+        this.requestDirectionsWithTransport(transport, routeInfoEl, directionBtns, btn as HTMLButtonElement);
+      });
+    });
+
+    closeBtn.addEventListener('click', () => {
+      this.hidePlaceDetail();
+    });
+
+    this.placeDetailContainer = mainContainer;
   }
 
   private async requestDirectionsWithTransport(
