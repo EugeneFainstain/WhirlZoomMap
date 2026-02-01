@@ -4,6 +4,10 @@
   box-sizing: border-box;
   /* Disable browser double-tap-to-zoom on ALL elements (including MapKit's dynamic POI overlays) */
   touch-action: manipulation;
+  /* Prevent iOS text selection on tap-and-a-half gesture */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 html, body {
@@ -85,6 +89,9 @@ html, body {
   background: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   outline: none;
+  /* Re-enable text selection for input fields */
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .search-bar input:focus {
