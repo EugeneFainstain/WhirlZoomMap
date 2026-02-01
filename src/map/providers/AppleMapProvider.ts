@@ -753,14 +753,19 @@ export class AppleMapProvider implements MapProvider {
   ): Promise<void> {
     if (this.isLoadingDirections || !this.currentPlaceCoordinate) return;
 
+    // Use cached location - no waiting
+    if (!this.cachedUserLocation) {
+      console.warn('No cached user location available for directions');
+      return;
+    }
+
     this.isLoadingDirections = true;
 
     // Disable all direction buttons while loading
     allBtns.forEach((btn) => (btn as HTMLButtonElement).disabled = true);
 
     try {
-      const userLocation = await this.getUserLocation();
-      const routeInfo = await this.getDirectionsWithTransport(userLocation, this.currentPlaceCoordinate, transport);
+      const routeInfo = await this.getDirectionsWithTransport(this.cachedUserLocation, this.currentPlaceCoordinate, transport);
 
       // Show route on map with transport-specific styling
       this.showRoute(routeInfo.polylinePoints, transport);

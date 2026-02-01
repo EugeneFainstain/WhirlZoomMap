@@ -271,6 +271,14 @@ export class SearchBar {
         this.clearTapCount = 0;
       }
     });
+
+    // Hide suggestions when clicking/tapping anywhere except on the suggestions themselves
+    document.addEventListener('pointerdown', (e) => {
+      const resultsEl = this.container.querySelector('#search-results');
+      if (resultsEl && !resultsEl.contains(e.target as Node)) {
+        this.hideResults();
+      }
+    });
   }
 
   private initSearch(): void {
