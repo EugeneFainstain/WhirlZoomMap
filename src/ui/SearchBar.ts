@@ -188,12 +188,32 @@ export class SearchBar {
   private mapProvider: MapProvider;
   private search: any = null;
   private isFiltered = false;
+  private clearTapCount = 0;
 
   constructor(container: HTMLElement, mapProvider: MapProvider) {
     this.container = container;
     this.mapProvider = mapProvider;
     this.render();
     this.initSearch();
+    this.setupDebugToggle();
+  }
+
+  private setupDebugToggle(): void {
+    // Reset tap count when clicking anywhere except the clear button
+    document.addEventListener('click', (e) => {
+      const clearBtn = this.container.querySelector('#search-clear');
+      if (clearBtn && !clearBtn.contains(e.target as Node)) {
+        this.clearTapCount = 0;
+      }
+    });
+
+    // Reset tap count when dragging anywhere
+    document.addEventListener('pointerdown', (e) => {
+      const clearBtn = this.container.querySelector('#search-clear');
+      if (clearBtn && !clearBtn.contains(e.target as Node)) {
+        this.clearTapCount = 0;
+      }
+    });
   }
 
   private render(): void {
@@ -240,6 +260,16 @@ export class SearchBar {
       this.hideResults();
       this.clearPOIFilter();
       input.focus();
+
+      // Track taps for debug controls toggle
+      this.clearTapCount++;
+      if (this.clearTapCount >= 4) {
+        const debugControls = document.getElementById('debug-controls');
+        if (debugControls) {
+          debugControls.classList.toggle('hidden');
+        }
+        this.clearTapCount = 0;
+      }
     });
   }
 
