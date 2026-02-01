@@ -33,6 +33,7 @@ export class TrailVisualizer {
   private virtualTouchPoint: VirtualTouchPoint | null = null;
   private zoomActivated: boolean = false;
   private alt1ZoomActivated: boolean = false;
+  private zoomGetter: (() => number) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -238,6 +239,10 @@ export class TrailVisualizer {
     this.alt1ZoomActivated = activated;
   }
 
+  setZoomGetter(getter: () => number): void {
+    this.zoomGetter = getter;
+  }
+
   private drawSpiralArc(centerX: number, centerY: number, fullCircles: number): void {
     if (fullCircles === 0) return;
 
@@ -415,6 +420,26 @@ export class TrailVisualizer {
       this.ctx.arc(currentPoint.x, currentPoint.y, this.circleRadius, 0, Math.PI * 2);
       this.ctx.fillStyle = 'rgba(70, 70, 70, 0.8)';
       this.ctx.fill();
+    }
+
+    // Draw zoom factor
+    if (this.zoomGetter) {
+      const zoom = this.zoomGetter();
+      const zoomText = zoom.toFixed(1);
+
+      // Position at same height as native checkbox, right-aligned
+      const nativeToggle = document.getElementById('visualize-toggle');
+      let zoomY = 50; // Default fallback
+      if (nativeToggle) {
+        const rect = nativeToggle.getBoundingClientRect();
+        zoomY = rect.top + rect.height / 2;
+      }
+
+      this.ctx.font = 'bold 16px sans-serif';
+      this.ctx.fillStyle = 'rgba(70, 70, 70, 0.9)';
+      this.ctx.textAlign = 'right';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(zoomText, this.canvas.width - 10, zoomY);
     }
   }
 

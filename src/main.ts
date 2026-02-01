@@ -41,6 +41,7 @@ async function main() {
 
   // Set up visualization
   const trailVisualizer = new TrailVisualizer(visualizationCanvas);
+  trailVisualizer.setZoomGetter(() => mapProvider.getZoom());
 
   // Set up the interaction layer with pass-through handler
   const handler = new PassThroughHandler();
