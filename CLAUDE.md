@@ -51,7 +51,24 @@ adb reverse tcp:5173 tcp:5173
 Then open `http://127.0.0.1:5173/WhirlZoomMap/` on the device.
 
 ## MapKit JS Token
-Using a static domain-restricted token from the Apple Developer portal (no backend JWT generation needed). The token is set in `.env` and read at runtime.
+
+The token is a JWT signed with your Apple Developer private key. It's stored in `.env` and read at runtime.
+
+### Updating the Token
+
+When your token expires (or you need a new key), run:
+
+```bash
+node update-mapkit-key.cjs
+```
+
+This interactive script will:
+1. Guide you through getting a new key from the Apple Developer portal
+2. Prompt for your private key and Key ID
+3. Generate a new JWT (valid for 180 days)
+4. Optionally update `.env` automatically
+
+**Requires:** `npm install jsonwebtoken` (already in devDependencies)
 
 ## Adding a New Map Provider
 1. Create `src/map/providers/YourProvider.ts` implementing `MapProvider`
