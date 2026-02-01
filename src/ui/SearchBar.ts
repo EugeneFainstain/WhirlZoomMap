@@ -187,7 +187,6 @@ export class SearchBar {
   private container: HTMLElement;
   private mapProvider: MapProvider;
   private search: any = null;
-  private isFiltered = false;
   private clearTapCount = 0;
   private autocompleteRequestId: number | null = null;
 
@@ -250,9 +249,9 @@ export class SearchBar {
         this.clearPOIFilter();
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        this.filterPOIs(input.value.trim());
         this.hideResults();
         input.blur();
+        this.handleSearchSubmit(input.value.trim());
       }
     });
 
@@ -350,26 +349,12 @@ export class SearchBar {
         const displayName = result.displayLines?.[0] || originalQuery;
         input.value = displayName;
         this.hideResults();
-
-        // If result has a coordinate, go there directly
-        if (result.coordinate) {
-          this.mapProvider.setCenter(result.coordinate.latitude, result.coordinate.longitude);
-          this.mapProvider.setZoom(15);
-        } else {
-          // Otherwise do a full search constrained to current region
-          const region = this.buildCurrentRegion();
-          this.search.search(displayName, (error: any, data: any) => {
-            if (error || !data.places || data.places.length === 0) return;
-            const place = data.places[0];
-            this.mapProvider.setCenter(place.coordinate.latitude, place.coordinate.longitude);
-            this.mapProvider.setZoom(15);
-          }, { region });
-        }
+        this.handleSearchSubmit(displayName);
       });
     });
   }
 
-  private filterPOIs(query: string): void {
+  private handleSearchSubmit(query: string): void {
     if (!query) {
       this.clearPOIFilter();
       return;
@@ -380,33 +365,55 @@ export class SearchBar {
     // Special case: "none" hides all POIs
     if (normalizedQuery === 'none') {
       this.mapProvider.filterPOIByCategories([]);
-      this.isFiltered = true;
+      this.mapProvider.clearMarkers();
       return;
     }
 
-    let categories: string[] | undefined;
+    // Check if query matches a POI category
+    const categories = SEARCH_TO_POI_CATEGORIES[normalizedQuery];
 
-    // 1. Check our custom mapping for exact match (food -> Restaurant, Cafe, etc.)
-    categories = SEARCH_TO_POI_CATEGORIES[normalizedQuery];
+    if (categories) {
+      // POI category match - filter and navigate to nearest match
+      this.mapProvider.filterPOIByCategories(categories);
+      this.mapProvider.clearMarkers();
 
-    // 2. Try using the query directly as a category name (e.g., "Restaurant" -> Restaurant)
-    if (!categories) {
-      const asCategory = query
-        .split(/\s+/)
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join('');
-      categories = [asCategory];
+      // Search for the category and navigate to the first result
+      const region = this.buildCurrentRegion();
+      this.search.search(query, (error: any, data: any) => {
+        if (error || !data.places || data.places.length === 0) return;
+        const place = data.places[0];
+        this.mapProvider.setCenter(place.coordinate.latitude, place.coordinate.longitude);
+        this.mapProvider.setZoom(15);
+      }, { region });
+      return;
     }
 
-    // Filter the map to only show these POI types
-    this.mapProvider.filterPOIByCategories(categories);
-    this.isFiltered = true;
+    // No POI category match - search for the place, navigate, and add pin
+    this.clearPOIFilter(); // Show all POIs
+    this.mapProvider.clearMarkers(); // Clear any existing search pins
+
+    const region = this.buildCurrentRegion();
+    this.search.search(query, (error: any, data: any) => {
+      if (error || !data.places || data.places.length === 0) return;
+
+      const place = data.places[0];
+      this.mapProvider.setCenter(place.coordinate.latitude, place.coordinate.longitude);
+      this.mapProvider.setZoom(15);
+
+      // Add a pin with the placeId so clicking it shows PlaceDetail
+      this.mapProvider.addMarkers([{
+        id: place.id || `search-${Date.now()}`,
+        lat: place.coordinate.latitude,
+        lng: place.coordinate.longitude,
+        title: place.name || query,
+        subtitle: place.formattedAddress || '',
+        placeId: place.id,
+      }]);
+    }, { region });
   }
 
   private clearPOIFilter(): void {
     this.mapProvider.clearPOIFilter();
-
-    this.isFiltered = false;
   }
 
   private hideResults(): void {

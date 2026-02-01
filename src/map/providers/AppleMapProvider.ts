@@ -12,6 +12,7 @@ export class AppleMapProvider implements MapProvider {
   private currentPlaceDetail: any = null;
   private currentPlaceCoordinate: LatLng | null = null;
   private selectedPOI: { id: string; annotation: any; selectedAt: number } | null = null;
+  private selectedMarker: { marker: MapMarker; annotation: any; selectedAt: number } | null = null;
   private routeOverlay: any = null;
   private isLoadingDirections = false;
   private hasActiveRoute = false;
@@ -69,33 +70,55 @@ export class AppleMapProvider implements MapProvider {
         }
       });
 
-      // Also listen for clicks on the container to detect taps on already-selected POI
+      // Also listen for clicks on the container to detect taps on already-selected POI or marker
       container.addEventListener('click', (e: MouseEvent) => {
-        if (!this.selectedPOI || this.currentPlaceDetail) return;
+        if (this.currentPlaceDetail) return;
 
-        // Ignore clicks within 100ms of selection (same tap that selected the POI)
-        if (Date.now() - this.selectedPOI.selectedAt < 100) return;
+        // Check for selected POI
+        if (this.selectedPOI) {
+          // Ignore clicks within 100ms of selection (same tap that selected the POI)
+          if (Date.now() - this.selectedPOI.selectedAt < 100) return;
 
-        // Check if click was near the selected annotation
-        // The enlarged POI icon is displayed ABOVE the coordinate point (pin tip),
-        // so we offset Y upward by ~35px to match the visual icon center
-        const annCoord = this.selectedPOI.annotation.coordinate;
-        const annPoint = this.map.convertCoordinateToPointOnPage(annCoord);
-        const iconCenterY = annPoint.y - 35;
+          // Check if click was near the selected annotation
+          // The enlarged POI icon is displayed ABOVE the coordinate point (pin tip),
+          // so we offset Y upward by ~35px to match the visual icon center
+          const annCoord = this.selectedPOI.annotation.coordinate;
+          const annPoint = this.map.convertCoordinateToPointOnPage(annCoord);
+          const iconCenterY = annPoint.y - 35;
 
-        const dx = e.pageX - annPoint.x;
-        const dy = e.pageY - iconCenterY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+          const dx = e.pageX - annPoint.x;
+          const dy = e.pageY - iconCenterY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // If click is within 45px of the icon center, show the card
-        if (distance < 45) {
-          this.showPlaceDetail(this.selectedPOI.id);
+          // If click is within 45px of the icon center, show the card
+          if (distance < 45) {
+            this.showPlaceDetail(this.selectedPOI.id);
+          }
+        }
+
+        // Check for selected marker with placeId
+        if (this.selectedMarker?.marker.placeId) {
+          // Ignore clicks within 100ms of selection (same tap that selected the marker)
+          if (Date.now() - this.selectedMarker.selectedAt < 100) return;
+
+          const annCoord = this.selectedMarker.annotation.coordinate;
+          const annPoint = this.map.convertCoordinateToPointOnPage(annCoord);
+          const iconCenterY = annPoint.y - 35;
+
+          const dx = e.pageX - annPoint.x;
+          const dy = e.pageY - iconCenterY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < 45) {
+            this.showPlaceDetail(this.selectedMarker.marker.placeId);
+          }
         }
       });
 
       // Listen for deselect to hide the place detail
       this.map.addEventListener('deselect', () => {
         this.selectedPOI = null;
+        this.selectedMarker = null;
         this.hidePlaceDetail();
       });
 
@@ -314,8 +337,18 @@ export class AppleMapProvider implements MapProvider {
     this.map.addEventListener('select', (event: any) => {
       const annotation = event.annotation;
       const marker = this.markerMap.get(annotation);
-      if (marker && this.markerSelectCallback) {
-        this.markerSelectCallback(marker);
+      if (marker) {
+        if (marker.placeId) {
+          // Two-tap pattern for markers with placeId (like POIs)
+          if (this.selectedMarker?.marker.id === marker.id) {
+            this.showPlaceDetail(marker.placeId);
+          } else {
+            this.selectedMarker = { marker, annotation, selectedAt: Date.now() };
+          }
+        }
+        if (this.markerSelectCallback) {
+          this.markerSelectCallback(marker);
+        }
       }
     });
   }

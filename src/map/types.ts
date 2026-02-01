@@ -22,6 +22,7 @@ export interface MapMarker {
   lng: number;
   title: string;
   subtitle?: string;
+  placeId?: string; // For showing PlaceDetail on marker click
 }
 
 export interface MapOptions {
