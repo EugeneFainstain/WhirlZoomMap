@@ -14,6 +14,9 @@ export class AppleMapProvider implements MapProvider {
   private selectedPOI: { id: string; annotation: any; selectedAt: number } | null = null;
   private selectedMarker: { marker: MapMarker; annotation: any; selectedAt: number } | null = null;
   private routeOverlay: any = null;
+  private traveledOverlay: any = null;
+  private routePoints: LatLng[] | null = null;
+  private currentTransport: string = 'Automobile';
   private isLoadingDirections = false;
   private hasActiveRoute = false;
   private cachedUserLocation: LatLng | null = null;
@@ -848,6 +851,10 @@ export class AppleMapProvider implements MapProvider {
     // Clear any existing route
     this.clearRoute();
 
+    // Store route data for progress tracking
+    this.routePoints = points;
+    this.currentTransport = transport;
+
     // Convert LatLng array to MapKit coordinates
     const coordinates = points.map(
       (p) => new mapkit.Coordinate(p.lat, p.lng)
@@ -878,9 +885,169 @@ export class AppleMapProvider implements MapProvider {
   }
 
   clearRoute(): void {
-    if (!this.map || !this.routeOverlay) return;
-    this.map.removeOverlay(this.routeOverlay);
-    this.routeOverlay = null;
+    if (!this.map) return;
+    if (this.routeOverlay) {
+      this.map.removeOverlay(this.routeOverlay);
+      this.routeOverlay = null;
+    }
+    if (this.traveledOverlay) {
+      this.map.removeOverlay(this.traveledOverlay);
+      this.traveledOverlay = null;
+    }
+    this.routePoints = null;
+  }
+
+  /**
+   * Find the index of the closest point on the route to the given location.
+   * Also returns the projected point on the line segment for more precise tracking.
+   */
+  private findClosestPointOnRoute(location: LatLng): { index: number; projectedPoint: LatLng } | null {
+    if (!this.routePoints || this.routePoints.length < 2) return null;
+
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+    let closestProjectedPoint: LatLng = this.routePoints[0];
+
+    // Check each segment of the route
+    for (let i = 0; i < this.routePoints.length - 1; i++) {
+      const segmentStart = this.routePoints[i];
+      const segmentEnd = this.routePoints[i + 1];
+
+      // Project the location onto the line segment
+      const projected = this.projectPointOnSegment(location, segmentStart, segmentEnd);
+      const distance = this.haversineDistance(location, projected);
+
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = i;
+        closestProjectedPoint = projected;
+      }
+    }
+
+    return { index: closestIndex, projectedPoint: closestProjectedPoint };
+  }
+
+  /**
+   * Project a point onto a line segment, returning the closest point on the segment.
+   */
+  private projectPointOnSegment(point: LatLng, segmentStart: LatLng, segmentEnd: LatLng): LatLng {
+    const dx = segmentEnd.lng - segmentStart.lng;
+    const dy = segmentEnd.lat - segmentStart.lat;
+    const lengthSquared = dx * dx + dy * dy;
+
+    if (lengthSquared === 0) {
+      // Segment is a point
+      return segmentStart;
+    }
+
+    // Calculate projection parameter t (0 = start, 1 = end)
+    const t = Math.max(0, Math.min(1,
+      ((point.lng - segmentStart.lng) * dx + (point.lat - segmentStart.lat) * dy) / lengthSquared
+    ));
+
+    return {
+      lat: segmentStart.lat + t * dy,
+      lng: segmentStart.lng + t * dx,
+    };
+  }
+
+  /**
+   * Calculate the Haversine distance between two points in meters.
+   */
+  private haversineDistance(point1: LatLng, point2: LatLng): number {
+    const R = 6371000; // Earth's radius in meters
+    const lat1 = point1.lat * Math.PI / 180;
+    const lat2 = point2.lat * Math.PI / 180;
+    const deltaLat = (point2.lat - point1.lat) * Math.PI / 180;
+    const deltaLng = (point2.lng - point1.lng) * Math.PI / 180;
+
+    const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  }
+
+  /**
+   * Update the route visualization based on user's current location.
+   * Draws traveled portion in grey and remaining portion in blue.
+   */
+  private updateRouteProgress(userLocation: LatLng): void {
+    if (!this.map || !this.routePoints || this.routePoints.length < 2) return;
+
+    const closest = this.findClosestPointOnRoute(userLocation);
+    if (!closest) return;
+
+    // Remove existing overlays
+    if (this.traveledOverlay) {
+      this.map.removeOverlay(this.traveledOverlay);
+      this.traveledOverlay = null;
+    }
+    if (this.routeOverlay) {
+      this.map.removeOverlay(this.routeOverlay);
+      this.routeOverlay = null;
+    }
+
+    // Build traveled portion: from start to projected point
+    const traveledPoints: LatLng[] = [];
+    for (let i = 0; i <= closest.index; i++) {
+      traveledPoints.push(this.routePoints[i]);
+    }
+    traveledPoints.push(closest.projectedPoint);
+
+    // Build remaining portion: from projected point to end
+    const remainingPoints: LatLng[] = [closest.projectedPoint];
+    for (let i = closest.index + 1; i < this.routePoints.length; i++) {
+      remainingPoints.push(this.routePoints[i]);
+    }
+
+    // Create style for traveled portion (grey)
+    const traveledStyleOptions: any = {
+      lineWidth: 6,
+      strokeColor: '#8E8E93', // Grey color
+      strokeOpacity: 0.7,
+    };
+
+    // Create style for remaining portion (blue)
+    const remainingStyleOptions: any = {
+      lineWidth: 6,
+      strokeColor: '#007AFF',
+      strokeOpacity: 0.9,
+    };
+
+    // Apply transport-specific line dash patterns
+    if (this.currentTransport === 'Walking') {
+      traveledStyleOptions.lineDash = [1, 15];
+      traveledStyleOptions.lineCap = 'round';
+      remainingStyleOptions.lineDash = [1, 15];
+      remainingStyleOptions.lineCap = 'round';
+    } else if (this.currentTransport === 'Cycling') {
+      traveledStyleOptions.lineDash = [8, 12];
+      traveledStyleOptions.lineCap = 'round';
+      remainingStyleOptions.lineDash = [8, 12];
+      remainingStyleOptions.lineCap = 'round';
+    }
+
+    // Draw traveled portion if it has at least 2 points
+    if (traveledPoints.length >= 2) {
+      const traveledCoords = traveledPoints.map(
+        (p) => new mapkit.Coordinate(p.lat, p.lng)
+      );
+      const traveledStyle = new mapkit.Style(traveledStyleOptions);
+      this.traveledOverlay = new mapkit.PolylineOverlay(traveledCoords, { style: traveledStyle });
+      this.map.addOverlay(this.traveledOverlay);
+    }
+
+    // Draw remaining portion if it has at least 2 points
+    if (remainingPoints.length >= 2) {
+      const remainingCoords = remainingPoints.map(
+        (p) => new mapkit.Coordinate(p.lat, p.lng)
+      );
+      const remainingStyle = new mapkit.Style(remainingStyleOptions);
+      this.routeOverlay = new mapkit.PolylineOverlay(remainingCoords, { style: remainingStyle });
+      this.map.addOverlay(this.routeOverlay);
+    }
   }
 
   async getDirections(from: LatLng, to: LatLng): Promise<RouteInfo> {
@@ -946,6 +1113,11 @@ export class AppleMapProvider implements MapProvider {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         };
+
+        // Update route progress visualization if there's an active route
+        if (this.hasActiveRoute && this.routePoints) {
+          this.updateRouteProgress(this.cachedUserLocation);
+        }
       },
       () => {}, // Ignore errors for background tracking
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
