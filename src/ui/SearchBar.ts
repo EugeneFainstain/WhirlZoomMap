@@ -189,6 +189,7 @@ export class SearchBar {
   private search: any = null;
   private isFiltered = false;
   private clearTapCount = 0;
+  private autocompleteRequestId: number | null = null;
 
   constructor(container: HTMLElement, mapProvider: MapProvider) {
     this.container = container;
@@ -279,9 +280,93 @@ export class SearchBar {
     }
   }
 
-  private performSearch(_query: string): void {
-    // Dropdown search disabled - only POI filtering via Enter key
-    this.hideResults();
+  private buildCurrentRegion(): any {
+    const bounds = this.mapProvider.getBounds();
+    const center = this.mapProvider.getCenter();
+    const span = new mapkit.CoordinateSpan(
+      bounds.north - bounds.south,
+      bounds.east - bounds.west
+    );
+    return new mapkit.CoordinateRegion(
+      new mapkit.Coordinate(center.lat, center.lng),
+      span
+    );
+  }
+
+  private performSearch(query: string): void {
+    // Cancel any in-flight autocomplete request
+    if (this.autocompleteRequestId !== null && this.search) {
+      this.search.cancel(this.autocompleteRequestId);
+      this.autocompleteRequestId = null;
+    }
+
+    if (!query.trim() || !this.search) {
+      this.hideResults();
+      return;
+    }
+
+    const region = this.buildCurrentRegion();
+
+    this.autocompleteRequestId = this.search.autocomplete(
+      query,
+      (error: any, data: any) => {
+        this.autocompleteRequestId = null;
+        if (error) {
+          this.hideResults();
+          return;
+        }
+        this.showAutocompleteResults(data.results, query);
+      },
+      { region }
+    );
+  }
+
+  private showAutocompleteResults(results: any[], originalQuery: string): void {
+    const resultsEl = this.container.querySelector('#search-results') as HTMLElement;
+    if (!results || results.length === 0) {
+      this.hideResults();
+      return;
+    }
+
+    resultsEl.innerHTML = results
+      .slice(0, 5)
+      .map((result: any, i: number) => {
+        const lines = result.displayLines || [];
+        return `
+          <div class="search-result-item" data-index="${i}">
+            <span class="result-name">${lines[0] || ''}</span>
+            <span class="result-address">${lines.slice(1).join(', ')}</span>
+          </div>
+        `;
+      })
+      .join('');
+
+    resultsEl.classList.remove('hidden');
+
+    resultsEl.querySelectorAll('.search-result-item').forEach((item, i) => {
+      item.addEventListener('click', () => {
+        const result = results[i];
+        const input = this.container.querySelector('#search-input') as HTMLInputElement;
+        const displayName = result.displayLines?.[0] || originalQuery;
+        input.value = displayName;
+        this.hideResults();
+
+        // If result has a coordinate, go there directly
+        if (result.coordinate) {
+          this.mapProvider.setCenter(result.coordinate.latitude, result.coordinate.longitude);
+          this.mapProvider.setZoom(15);
+        } else {
+          // Otherwise do a full search constrained to current region
+          const region = this.buildCurrentRegion();
+          this.search.search(displayName, (error: any, data: any) => {
+            if (error || !data.places || data.places.length === 0) return;
+            const place = data.places[0];
+            this.mapProvider.setCenter(place.coordinate.latitude, place.coordinate.longitude);
+            this.mapProvider.setZoom(15);
+          }, { region });
+        }
+      });
+    });
   }
 
   private filterPOIs(query: string): void {
@@ -322,40 +407,6 @@ export class SearchBar {
     this.mapProvider.clearPOIFilter();
 
     this.isFiltered = false;
-  }
-
-  private showResults(places: any[]): void {
-    const resultsEl = this.container.querySelector('#search-results') as HTMLElement;
-    if (places.length === 0) {
-      this.hideResults();
-      return;
-    }
-
-    resultsEl.innerHTML = places
-      .slice(0, 5)
-      .map(
-        (place: any, i: number) => `
-        <div class="search-result-item" data-index="${i}">
-          <span class="result-name">${place.name || ''}</span>
-          <span class="result-address">${place.formattedAddress || ''}</span>
-        </div>
-      `
-      )
-      .join('');
-
-    resultsEl.classList.remove('hidden');
-
-    resultsEl.querySelectorAll('.search-result-item').forEach((item, i) => {
-      item.addEventListener('click', () => {
-        const place = places[i];
-        const coord = place.coordinate;
-        this.mapProvider.setCenter(coord.latitude, coord.longitude);
-        this.mapProvider.setZoom(15);
-        this.hideResults();
-        (this.container.querySelector('#search-input') as HTMLInputElement).value =
-          place.name || place.formattedAddress || '';
-      });
-    });
   }
 
   private hideResults(): void {
