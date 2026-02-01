@@ -262,20 +262,10 @@ export class SearchBar {
 
     let categories: string[] | undefined;
 
-    // 1. Check our custom mapping for synonyms (food -> Restaurant, Cafe, etc.)
+    // 1. Check our custom mapping for exact match (food -> Restaurant, Cafe, etc.)
     categories = SEARCH_TO_POI_CATEGORIES[normalizedQuery];
 
-    // 2. Try partial match in our mapping
-    if (!categories) {
-      for (const [term, cats] of Object.entries(SEARCH_TO_POI_CATEGORIES)) {
-        if (normalizedQuery.includes(term) || term.includes(normalizedQuery)) {
-          categories = cats;
-          break;
-        }
-      }
-    }
-
-    // 3. Try using the query directly as a category name (e.g., "Restaurant" -> Restaurant)
+    // 2. Try using the query directly as a category name (e.g., "Restaurant" -> Restaurant)
     if (!categories) {
       const asCategory = query
         .split(/\s+/)
