@@ -205,11 +205,13 @@ export class SearchBar {
           placeholder="Search places..."
           autocomplete="off"
         />
+        <button id="search-clear" class="search-clear" type="button">&times;</button>
         <div id="search-results" class="search-results hidden"></div>
       </div>
     `;
 
     const input = this.container.querySelector('#search-input') as HTMLInputElement;
+    const clearBtn = this.container.querySelector('#search-clear') as HTMLButtonElement;
     let debounceTimer: number;
 
     input.addEventListener('input', () => {
@@ -231,6 +233,13 @@ export class SearchBar {
         this.hideResults();
         input.blur();
       }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      input.value = '';
+      this.hideResults();
+      this.clearPOIFilter();
+      input.focus();
     });
   }
 

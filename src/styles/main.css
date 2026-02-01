@@ -78,7 +78,7 @@ html, body {
 
 .search-bar input {
   width: 100%;
-  padding: 12px 16px;
+  padding: 12px 40px 12px 16px;
   font-size: 15px;
   border: none;
   border-radius: 8px;
@@ -89,6 +89,29 @@ html, body {
 
 .search-bar input:focus {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-clear:hover {
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .search-results {
