@@ -177,6 +177,16 @@ export class AppleMapProvider implements MapProvider {
     return Math.log2(360 / span);
   }
 
+  setCenterAndZoom(lat: number, lng: number, zoom: number, animated = true): void {
+    if (!this.map) return;
+    const span = 360 / Math.pow(2, zoom);
+    const region = new mapkit.CoordinateRegion(
+      new mapkit.Coordinate(lat, lng),
+      new mapkit.CoordinateSpan(span, span)
+    );
+    this.map.setRegionAnimated(region, animated);
+  }
+
   setRotation(degrees: number, animated = true): void {
     if (!this.map) return;
     this.map.setRotationAnimated(degrees, animated);

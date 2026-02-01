@@ -37,6 +37,7 @@ export interface MapProvider {
   getCenter(): LatLng;
   setZoom(level: number, animated?: boolean): void;
   getZoom(): number;
+  setCenterAndZoom(lat: number, lng: number, zoom: number, animated?: boolean): void;
   setRotation(degrees: number, animated?: boolean): void;
   getRotation(): number;
   panBy(dx: number, dy: number): void;
