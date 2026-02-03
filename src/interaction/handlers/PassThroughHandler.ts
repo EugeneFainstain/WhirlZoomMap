@@ -1,6 +1,7 @@
 import { MapProvider } from '../../map/types';
 import { InteractionHandler } from '../types';
 import { TrailVisualizer } from '../../visualization/TrailVisualizer';
+import { EdgeIndicator } from '../../visualization/EdgeIndicator';
 
 interface PointerState {
   pointerId: number;
@@ -20,6 +21,7 @@ interface VelocitySample {
 export class PassThroughHandler implements InteractionHandler {
   private pointers: Map<number, PointerState> = new Map();
   private visualizer: TrailVisualizer | null = null;
+  private edgeIndicator: EdgeIndicator | null = null;
 
   // Drag anchor - the geographic coordinate that should stay under the cursor during drag
   private dragAnchorCoord: { lat: number; lng: number } | null = null;
@@ -47,6 +49,10 @@ export class PassThroughHandler implements InteractionHandler {
 
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
+  }
+
+  setEdgeIndicator(edgeIndicator: EdgeIndicator | null): void {
+    this.edgeIndicator = edgeIndicator;
   }
 
   setAlt1Mode(enabled: boolean): void {
@@ -223,6 +229,11 @@ export class PassThroughHandler implements InteractionHandler {
           this.velocitySamples.shift();
         }
       }
+
+      // Update edge indicator based on finger position
+      if (this.edgeIndicator) {
+        this.edgeIndicator.update(e.clientX, e.clientY, true);
+      }
     }
 
     // Update pointer position BEFORE handling multi-touch gestures
@@ -288,6 +299,11 @@ export class PassThroughHandler implements InteractionHandler {
       // Clear the drag point and set virtual touch point at the release position
       this.visualizer.clearDragPoint();
       this.visualizer.setVirtualTouchPoint(pointer.lastX, pointer.lastY);
+    }
+
+    // Hide edge indicator when drag ends
+    if (wasSinglePointer && this.pointers.size === 0 && this.edgeIndicator) {
+      this.edgeIndicator.hide();
     }
 
     // Clear visualizer trail and drag point when all pointers are released (but not during inertia)

@@ -5,6 +5,7 @@ import { PassThroughHandler } from './interaction/handlers/PassThroughHandler';
 import { MapControls } from './ui/MapControls';
 import { SearchBar } from './ui/SearchBar';
 import { TrailVisualizer } from './visualization/TrailVisualizer';
+import { EdgeIndicator } from './visualization/EdgeIndicator';
 
 // Prevent browser double-tap-to-zoom (shadow DOM elements bypass CSS touch-action)
 let lastTouchEnd = 0;
@@ -47,6 +48,11 @@ async function main() {
   const handler = new PassThroughHandler();
   handler.setVisualizer(trailVisualizer);
   handler.setAlt1Mode(true); // Alt1 mode enabled by default
+
+  // Set up edge indicator for drag-near-edge feedback
+  const edgeIndicator = new EdgeIndicator(interactionElement);
+  handler.setEdgeIndicator(edgeIndicator);
+
   const interactionLayer = new InteractionLayer(interactionElement, handler, mapProvider);
 
   // Set up UI
@@ -83,6 +89,7 @@ async function main() {
       mapControls,
       searchBar,
       trailVisualizer,
+      edgeIndicator,
     };
   }
 }
