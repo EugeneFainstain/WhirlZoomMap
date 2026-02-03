@@ -23,8 +23,8 @@ export class PassThroughHandler implements InteractionHandler {
   private visualizer: TrailVisualizer | null = null;
   private edgeIndicator: EdgeIndicator | null = null;
 
-  // Drag anchor - the geographic coordinate that should stay under the cursor during drag
-  private dragAnchorCoord: { lat: number; lng: number } | null = null;
+  // The geographic coordinate that should stay under the finger during drag
+  private mapAnchorPos: { lat: number; lng: number } | null = null;
 
   // Inertia state
   private velocitySamples: VelocitySample[] = [];
@@ -47,12 +47,48 @@ export class PassThroughHandler implements InteractionHandler {
   // Viewport element for consistent bounds calculations
   private viewport: HTMLElement | null = null;
 
+  // State for edge-based rotation (continuous rotation even when finger is stationary)
+  private currentMapProvider: MapProvider | null = null;
+  private draggingFingerX: number = 0;
+  private draggingFingerY: number = 0;
+  private lastRotationTime: number = 0;
+
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
   }
 
   setEdgeIndicator(edgeIndicator: EdgeIndicator | null): void {
     this.edgeIndicator = edgeIndicator;
+    if (edgeIndicator) {
+      edgeIndicator.setRotationCallback((rate: number) => {
+        this.applyEdgeRotation(rate);
+      });
+    }
+  }
+
+  private applyEdgeRotation(rate: number): void {
+    if (!this.currentMapProvider || !this.mapAnchorPos) return;
+
+    const now = performance.now();
+    const dt = this.lastRotationTime > 0 ? (now - this.lastRotationTime) / 1000 : 1 / 60;
+    this.lastRotationTime = now;
+
+    // Clamp dt to prevent huge jumps
+    const clampedDt = Math.min(dt, 0.1);
+
+    // Rotation speed: 45 degrees per second at full progress
+    const rotationSpeed = 45;
+    const rotationDelta = rate * rotationSpeed * clampedDt;
+    const currentRotation = this.currentMapProvider.getRotation();
+    this.currentMapProvider.setRotation(currentRotation + rotationDelta, false);
+
+    // Reposition the anchor to keep the finger point stable
+    this.positionCoordinateAtScreenPoint(
+      this.currentMapProvider,
+      this.mapAnchorPos,
+      this.draggingFingerX,
+      this.draggingFingerY
+    );
   }
 
   setAlt1Mode(enabled: boolean): void {
@@ -128,8 +164,13 @@ export class PassThroughHandler implements InteractionHandler {
       }
       const coord = this.getCoordinateAtScreenPoint(mapProvider, e.clientX, e.clientY);
       if (coord) {
-        this.dragAnchorCoord = coord;
+        this.mapAnchorPos = coord;
       }
+      // Store state for edge-based rotation
+      this.currentMapProvider = mapProvider;
+      this.draggingFingerX = e.clientX;
+      this.draggingFingerY = e.clientY;
+      this.lastRotationTime = 0; // Reset so first rotation frame uses default dt
     }
 
     // Add initial point to visualizer and clear any virtual touch point
@@ -206,7 +247,17 @@ export class PassThroughHandler implements InteractionHandler {
         }
       }
 
-      // Apply zoom first if needed
+      // Update dragging finger position for edge-based rotation callback
+      this.draggingFingerX = e.clientX;
+      this.draggingFingerY = e.clientY;
+
+      // Update edge indicator based on finger position
+      // (rotation is handled continuously via callback, even when finger is stationary)
+      if (this.edgeIndicator) {
+        this.edgeIndicator.update(e.clientX, e.clientY, true);
+      }
+
+      // Apply zoom if needed
       if (Math.abs(zoomDelta) > 0.0001) {
         const rect = viewport.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -215,8 +266,10 @@ export class PassThroughHandler implements InteractionHandler {
       }
 
       // Position the drag anchor coordinate at the current cursor position
-      if (this.dragAnchorCoord) {
-        this.positionCoordinateAtScreenPoint(mapProvider, this.dragAnchorCoord, e.clientX, e.clientY);
+      // This corrects for any drift from zoom, making it effectively
+      // happen around the finger position. Rotation drift is handled by the rotation callback.
+      if (this.mapAnchorPos) {
+        this.positionCoordinateAtScreenPoint(mapProvider, this.mapAnchorPos, e.clientX, e.clientY);
       }
 
       // Track velocity for inertia
@@ -228,11 +281,6 @@ export class PassThroughHandler implements InteractionHandler {
         if (this.velocitySamples.length > this.maxVelocitySamples) {
           this.velocitySamples.shift();
         }
-      }
-
-      // Update edge indicator based on finger position
-      if (this.edgeIndicator) {
-        this.edgeIndicator.update(e.clientX, e.clientY, true);
       }
     }
 
@@ -284,14 +332,14 @@ export class PassThroughHandler implements InteractionHandler {
       if (remainingPointer) {
         const coord = this.getCoordinateAtScreenPoint(mapProvider, remainingPointer.lastX, remainingPointer.lastY);
         if (coord) {
-          this.dragAnchorCoord = coord;
+          this.mapAnchorPos = coord;
         }
       }
     }
 
     // Clear drag anchor when all pointers are released
     if (this.pointers.size === 0) {
-      this.dragAnchorCoord = null;
+      this.mapAnchorPos = null;
     }
 
     // When releasing from single-pointer drag
@@ -301,9 +349,12 @@ export class PassThroughHandler implements InteractionHandler {
       this.visualizer.setVirtualTouchPoint(pointer.lastX, pointer.lastY);
     }
 
-    // Hide edge indicator when drag ends
-    if (wasSinglePointer && this.pointers.size === 0 && this.edgeIndicator) {
-      this.edgeIndicator.hide();
+    // Hide edge indicator and clear rotation state when drag ends
+    if (wasSinglePointer && this.pointers.size === 0) {
+      if (this.edgeIndicator) {
+        this.edgeIndicator.hide();
+      }
+      this.currentMapProvider = null;
     }
 
     // Clear visualizer trail and drag point when all pointers are released (but not during inertia)

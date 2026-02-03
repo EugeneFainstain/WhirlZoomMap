@@ -17,6 +17,13 @@ export class EdgeIndicator {
   // Configuration
   private readonly gapSize = 8; // Gap between top and bottom bars in pixels
 
+  // Current rotation rate (positive = CW, negative = CCW)
+  private currentRotationRate: number = 0;
+
+  // Rotation animation state
+  private rotationAnimationId: number | null = null;
+  private rotationCallback: ((rate: number) => void) | null = null;
+
   constructor(container: HTMLElement) {
     this.container = container;
 
@@ -37,6 +44,13 @@ export class EdgeIndicator {
 
     // Handle resize
     window.addEventListener('resize', this.positionBars);
+  }
+
+  /**
+   * Set a callback that will be called continuously while rotation is active
+   */
+  setRotationCallback(callback: (rate: number) => void): void {
+    this.rotationCallback = callback;
   }
 
   private createBar(color: 'red' | 'blue'): HTMLElement {
@@ -125,6 +139,75 @@ export class EdgeIndicator {
     const leftOffset = barWidth * (1 - leftProgress);
     this.leftTopBar.style.transform = `translateX(${barWidth - leftOffset}px)`;
     this.leftBottomBar.style.transform = `translateX(${barWidth - leftOffset}px)`;
+
+    // Calculate rotation rate - only starts at 1/16th from edge
+    // Progress goes from 0 at 1/16th to 1 at the edge
+    const rotationStartThreshold = rect.width / 16;
+
+    let rightRotationProgress = 0;
+    if (distanceFromRight <= rotationStartThreshold) {
+      rightRotationProgress = 1 - distanceFromRight / rotationStartThreshold;
+      rightRotationProgress = Math.max(0, Math.min(1, rightRotationProgress));
+    }
+
+    let leftRotationProgress = 0;
+    if (distanceFromLeft <= rotationStartThreshold) {
+      leftRotationProgress = 1 - distanceFromLeft / rotationStartThreshold;
+      leftRotationProgress = Math.max(0, Math.min(1, leftRotationProgress));
+    }
+
+    // Red bars = CW (positive), Blue bars = CCW (negative)
+    // Right: top=red(CW), bottom=blue(CCW)
+    // Left: top=blue(CCW), bottom=red(CW)
+    const centerY = rect.top + rect.height / 2;
+    const isTopHalf = fingerY < centerY;
+
+    this.currentRotationRate = 0;
+    if (rightRotationProgress > 0) {
+      // Near right edge: top=red(CW), bottom=blue(CCW)
+      this.currentRotationRate = isTopHalf ? rightRotationProgress : -rightRotationProgress;
+    } else if (leftRotationProgress > 0) {
+      // Near left edge: top=blue(CCW), bottom=red(CW)
+      this.currentRotationRate = isTopHalf ? -leftRotationProgress : leftRotationProgress;
+    }
+
+    // Start or stop the rotation animation loop
+    if (this.currentRotationRate !== 0 && this.rotationAnimationId === null) {
+      this.startRotationLoop();
+    } else if (this.currentRotationRate === 0 && this.rotationAnimationId !== null) {
+      this.stopRotationLoop();
+    }
+  }
+
+  private startRotationLoop(): void {
+    const animate = () => {
+      if (this.currentRotationRate !== 0 && this.rotationCallback) {
+        this.rotationCallback(this.currentRotationRate);
+      }
+
+      if (this.currentRotationRate !== 0) {
+        this.rotationAnimationId = requestAnimationFrame(animate);
+      } else {
+        this.rotationAnimationId = null;
+      }
+    };
+
+    this.rotationAnimationId = requestAnimationFrame(animate);
+  }
+
+  private stopRotationLoop(): void {
+    if (this.rotationAnimationId !== null) {
+      cancelAnimationFrame(this.rotationAnimationId);
+      this.rotationAnimationId = null;
+    }
+  }
+
+  /**
+   * Get the current rotation rate based on finger proximity to edge bars
+   * @returns Rotation rate: positive = clockwise, negative = counter-clockwise, 0 = no rotation
+   */
+  getRotationRate(): number {
+    return this.currentRotationRate;
   }
 
   /**
@@ -136,9 +219,12 @@ export class EdgeIndicator {
     this.rightBottomBar.style.transform = '';
     this.leftTopBar.style.transform = '';
     this.leftBottomBar.style.transform = '';
+    this.currentRotationRate = 0;
+    this.stopRotationLoop();
   }
 
   destroy(): void {
+    this.stopRotationLoop();
     window.removeEventListener('resize', this.positionBars);
     this.rightTopBar.remove();
     this.rightBottomBar.remove();
