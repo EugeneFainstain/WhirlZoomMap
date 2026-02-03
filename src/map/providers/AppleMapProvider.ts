@@ -1092,19 +1092,24 @@ export class AppleMapProvider implements MapProvider {
     if (!navigator.geolocation) return;
 
     // Get fast network-based position first (low accuracy but instant)
-    await new Promise<void>((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          this.cachedUserLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          resolve();
-        },
-        () => resolve(), // Resolve anyway on error, don't block
-        { enableHighAccuracy: false, maximumAge: Infinity, timeout: 3000 }
-      );
-    });
+    // Limit wait to 2 seconds - on desktop or when location unavailable, continue without it
+    // Use Promise.race with explicit timeout since getCurrentPosition timeout is unreliable
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            this.cachedUserLocation = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            };
+            resolve();
+          },
+          () => resolve(), // Resolve anyway on error, don't block
+          { enableHighAccuracy: false, maximumAge: Infinity, timeout: 2000 }
+        );
+      }),
+      new Promise<void>((resolve) => setTimeout(resolve, 2000)), // Fallback timeout
+    ]);
 
     // Watch for position updates (will refine with GPS over time)
     this.locationWatchId = navigator.geolocation.watchPosition(
