@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.firebase/
 .env
 *.local
 *.p8
+*.cache
