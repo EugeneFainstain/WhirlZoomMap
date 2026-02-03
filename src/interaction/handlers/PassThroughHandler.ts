@@ -60,9 +60,15 @@ export class PassThroughHandler implements InteractionHandler {
   setEdgeIndicator(edgeIndicator: EdgeIndicator | null): void {
     this.edgeIndicator = edgeIndicator;
     if (edgeIndicator) {
-      edgeIndicator.setRotationCallback((rate: number) => {
-        this.applyEdgeRotation(rate);
-      });
+      edgeIndicator.setRotationCallback(
+        (rate: number) => {
+          this.applyEdgeRotation(rate);
+        },
+        () => {
+          // Reset timer when rotation stops so re-entering doesn't cause a jump
+          this.lastRotationTime = 0;
+        }
+      );
     }
   }
 
@@ -355,6 +361,7 @@ export class PassThroughHandler implements InteractionHandler {
         this.edgeIndicator.hide();
       }
       this.currentMapProvider = null;
+      this.lastRotationTime = 0;
     }
 
     // Clear visualizer trail and drag point when all pointers are released (but not during inertia)

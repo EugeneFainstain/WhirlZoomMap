@@ -23,6 +23,7 @@ export class EdgeIndicator {
   // Rotation animation state
   private rotationAnimationId: number | null = null;
   private rotationCallback: ((rate: number) => void) | null = null;
+  private rotationStopCallback: (() => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -49,8 +50,9 @@ export class EdgeIndicator {
   /**
    * Set a callback that will be called continuously while rotation is active
    */
-  setRotationCallback(callback: (rate: number) => void): void {
+  setRotationCallback(callback: (rate: number) => void, onStop?: () => void): void {
     this.rotationCallback = callback;
+    this.rotationStopCallback = onStop ?? null;
   }
 
   private createBar(color: 'red' | 'blue'): HTMLElement {
@@ -140,21 +142,11 @@ export class EdgeIndicator {
     this.leftTopBar.style.transform = `translateX(${barWidth - leftOffset}px)`;
     this.leftBottomBar.style.transform = `translateX(${barWidth - leftOffset}px)`;
 
-    // Calculate rotation rate - only starts at 1/16th from edge
-    // Progress goes from 0 at 1/16th to 1 at the edge
-    const rotationStartThreshold = rect.width / 16;
+    // Calculate rotation rate - full speed when within 1/16th from edge
+    const rotationThreshold = rect.width / 16;
 
-    let rightRotationProgress = 0;
-    if (distanceFromRight <= rotationStartThreshold) {
-      rightRotationProgress = 1 - distanceFromRight / rotationStartThreshold;
-      rightRotationProgress = Math.max(0, Math.min(1, rightRotationProgress));
-    }
-
-    let leftRotationProgress = 0;
-    if (distanceFromLeft <= rotationStartThreshold) {
-      leftRotationProgress = 1 - distanceFromLeft / rotationStartThreshold;
-      leftRotationProgress = Math.max(0, Math.min(1, leftRotationProgress));
-    }
+    const rightRotationActive = distanceFromRight <= rotationThreshold;
+    const leftRotationActive = distanceFromLeft <= rotationThreshold;
 
     // Red bars = CW (positive), Blue bars = CCW (negative)
     // Right: top=red(CW), bottom=blue(CCW)
@@ -163,12 +155,12 @@ export class EdgeIndicator {
     const isTopHalf = fingerY < centerY;
 
     this.currentRotationRate = 0;
-    if (rightRotationProgress > 0) {
+    if (rightRotationActive) {
       // Near right edge: top=red(CW), bottom=blue(CCW)
-      this.currentRotationRate = isTopHalf ? rightRotationProgress : -rightRotationProgress;
-    } else if (leftRotationProgress > 0) {
+      this.currentRotationRate = isTopHalf ? 1 : -1;
+    } else if (leftRotationActive) {
       // Near left edge: top=blue(CCW), bottom=red(CW)
-      this.currentRotationRate = isTopHalf ? -leftRotationProgress : leftRotationProgress;
+      this.currentRotationRate = isTopHalf ? -1 : 1;
     }
 
     // Start or stop the rotation animation loop
@@ -199,6 +191,9 @@ export class EdgeIndicator {
     if (this.rotationAnimationId !== null) {
       cancelAnimationFrame(this.rotationAnimationId);
       this.rotationAnimationId = null;
+      if (this.rotationStopCallback) {
+        this.rotationStopCallback();
+      }
     }
   }
 
