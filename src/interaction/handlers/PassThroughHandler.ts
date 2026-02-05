@@ -4,6 +4,14 @@ import { TrailVisualizer } from '../../visualization/TrailVisualizer';
 import { EdgeIndicator } from '../../visualization/EdgeIndicator';
 import { GearIndicator } from '../../visualization/GearIndicator';
 
+/**
+ * Rotation mode control:
+ * - 'edge': Red/blue edge indicators with auto-rotation when finger is near edges (no gear)
+ * - 'gear': Gear indicator visible, rotation controlled by vertical drag when gear is near edge
+ */
+type RotationMode = 'edge' | 'gear';
+const ROTATION_MODE: RotationMode = 'gear';
+
 interface PointerState {
   pointerId: number;
   startX: number;
@@ -59,6 +67,10 @@ export class PassThroughHandler implements InteractionHandler {
   private lastRotationTime: number = 0;
   private isRotating: boolean = false;
 
+  // State for gear-mode rotation (rotation via vertical drag when gear is near edge)
+  private gearRotationActive: boolean = false;
+  private lastGearRotationY: number = 0;
+
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
   }
@@ -96,6 +108,8 @@ export class PassThroughHandler implements InteractionHandler {
   }
 
   private applyEdgeRotation(rate: number): void {
+    // Only apply edge rotation in edge mode
+    if (ROTATION_MODE !== 'edge') return;
     if (!this.currentMapProvider || !this.mapAnchorPos) return;
 
     const now = performance.now();
@@ -321,18 +335,63 @@ export class PassThroughHandler implements InteractionHandler {
       this.draggingFingerX = e.clientX;
       this.draggingFingerY = e.clientY;
 
-      // Update edge indicator based on finger position
-      // (rotation is handled continuously via callback, even when finger is stationary)
-      if (this.edgeIndicator) {
-        this.edgeIndicator.update(e.clientX, e.clientY, true);
-      }
+      if (ROTATION_MODE === 'edge') {
+        // Edge mode: use edge indicator with auto-rotation (no gear)
+        if (this.edgeIndicator) {
+          this.edgeIndicator.update(e.clientX, e.clientY, true);
+        }
+      } else {
+        // Gear mode: handle rotation via vertical drag when gear is near edge
+        // (gear visual update happens after anchor repositioning below)
+        if (this.mapAnchorPos) {
+          const anchorScreen = this.getScreenPointForCoordinate(mapProvider, this.mapAnchorPos, viewport);
+          if (anchorScreen) {
+            // Check if gear is within 1/16th of screen width from any edge
+            const rect = viewport.getBoundingClientRect();
+            const edgeThreshold = rect.width / 16;
+            const distanceFromLeft = anchorScreen.x;
+            const distanceFromRight = rect.width - anchorScreen.x;
+            const distanceFromTop = anchorScreen.y;
+            const distanceFromBottom = rect.height - anchorScreen.y;
+            const minDistance = Math.min(distanceFromLeft, distanceFromRight, distanceFromTop, distanceFromBottom);
 
-      // Update gear indicator at the map anchor position
-      if (this.gearIndicator && this.mapAnchorPos) {
-        const anchorScreen = this.getScreenPointForCoordinate(mapProvider, this.mapAnchorPos, viewport);
-        if (anchorScreen) {
-          const rotation = mapProvider.getRotation();
-          this.gearIndicator.update(e.clientX, e.clientY, anchorScreen.x, anchorScreen.y, true, rotation);
+            const wasGearRotationActive = this.gearRotationActive;
+            this.gearRotationActive = minDistance <= edgeThreshold;
+
+            if (this.gearRotationActive) {
+              // Determine rotation direction based on which edge the gear is near
+              // Left edge: up = CW, down = CCW
+              // Right edge: up = CCW, down = CW
+              const nearLeftEdge = distanceFromLeft <= edgeThreshold;
+              const nearRightEdge = distanceFromRight <= edgeThreshold;
+
+              if (wasGearRotationActive) {
+                const deltaY = e.clientY - this.lastGearRotationY;
+                // Rotation speed: 360 degrees per screen height of vertical movement
+                const rotationRate = (deltaY / rect.height) * 360;
+
+                let rotationDelta = rotationRate;
+                if (nearLeftEdge) {
+                  rotationDelta = rotationRate; // Left edge: down = CW
+                } else if (nearRightEdge) {
+                  rotationDelta = -rotationRate; // Right edge: down = CCW
+                }
+
+                if (Math.abs(rotationDelta) > 0.01) {
+                  const rotation = mapProvider.getRotation();
+                  mapProvider.setRotation(rotation + rotationDelta, false);
+                  // Reposition anchor to keep it stable
+                  this.positionCoordinateAtScreenPoint(mapProvider, this.mapAnchorPos, e.clientX, e.clientY);
+                }
+              }
+              this.lastGearRotationY = e.clientY;
+
+              // Block zoom while gear rotation is active
+              this.isRotating = true;
+            } else {
+              this.isRotating = false;
+            }
+          }
         }
       }
 
@@ -349,6 +408,15 @@ export class PassThroughHandler implements InteractionHandler {
       // happen around the finger position. Rotation drift is handled by the rotation callback.
       if (this.mapAnchorPos) {
         this.positionCoordinateAtScreenPoint(mapProvider, this.mapAnchorPos, e.clientX, e.clientY);
+      }
+
+      // Update gear indicator AFTER anchor repositioning to avoid lag
+      if (ROTATION_MODE === 'gear' && this.gearIndicator && this.mapAnchorPos) {
+        const anchorScreen = this.getScreenPointForCoordinate(mapProvider, this.mapAnchorPos, viewport);
+        if (anchorScreen) {
+          const rotation = mapProvider.getRotation();
+          this.gearIndicator.update(e.clientX, e.clientY, anchorScreen.x, anchorScreen.y, true, rotation);
+        }
       }
 
       // Track velocity for inertia
@@ -428,16 +496,21 @@ export class PassThroughHandler implements InteractionHandler {
       this.visualizer.setVirtualTouchPoint(pointer.lastX, pointer.lastY);
     }
 
-    // Hide edge indicator, gear indicator, and clear rotation state when drag ends
+    // Hide indicators and clear rotation state when drag ends
     if (wasSinglePointer && this.pointers.size === 0) {
-      if (this.edgeIndicator) {
-        this.edgeIndicator.hide();
-      }
-      if (this.gearIndicator) {
-        this.gearIndicator.hide();
+      if (ROTATION_MODE === 'edge') {
+        if (this.edgeIndicator) {
+          this.edgeIndicator.hide();
+        }
+      } else {
+        if (this.gearIndicator) {
+          this.gearIndicator.hide();
+        }
+        this.gearRotationActive = false;
       }
       this.currentMapProvider = null;
       this.lastRotationTime = 0;
+      this.isRotating = false;
     }
 
     // Clear visualizer trail and drag point when all pointers are released (but not during inertia)
