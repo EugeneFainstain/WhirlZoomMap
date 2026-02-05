@@ -358,6 +358,22 @@ export class PassThroughHandler implements InteractionHandler {
             const wasGearRotationActive = this.gearRotationActive;
             this.gearRotationActive = minDistance <= edgeThreshold;
 
+            // Handle entering gear rotation zone - reset zoom state
+            if (this.gearRotationActive && !wasGearRotationActive) {
+              this.zoomActivated = false;
+              this.alt1ZoomActivated = false;
+              if (this.visualizer) {
+                this.visualizer.setZoomActivated(false);
+                this.visualizer.setAlt1ZoomActivated(false);
+                this.visualizer.setZoomBlocked(true, this.dragStartTime);
+              }
+            }
+
+            // Handle leaving gear rotation zone - start fresh zoom timeout
+            if (!this.gearRotationActive && wasGearRotationActive) {
+              this.dragStartTime = performance.now();
+            }
+
             if (this.gearRotationActive) {
               // Determine rotation direction based on which edge the gear is near
               // Left edge: up = CW, down = CCW
