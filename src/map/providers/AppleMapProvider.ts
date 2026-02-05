@@ -1,5 +1,32 @@
 import { MapProvider, MapOptions, LatLng, MapBounds, MapMarker, RouteInfo } from '../types';
 import { config } from '../../config';
+import {
+  MAPKIT_CHECK_INTERVAL_MS,
+  MAPKIT_ZOOM_SPAN_BASE,
+  MAPKIT_LAT_CLAMP_MIN,
+  MAPKIT_LAT_CLAMP_MAX,
+  ZOOM_MIN_LEVEL,
+  ZOOM_MAX_LEVEL,
+  ZOOM_CLAMPING_EPSILON,
+  ZOOM_LIMIT_EPSILON,
+  POI_ICON_OFFSET_Y,
+  POI_TAP_RADIUS,
+  POI_SELECT_DEBOUNCE_MS,
+  MARKER_COLOR,
+  GEOLOCATION_TIMEOUT_MS,
+  GEOLOCATION_FAST_TIMEOUT_MS,
+  GEOLOCATION_FALLBACK_TIMEOUT_MS,
+  GEOLOCATION_WATCH_MAX_AGE_MS,
+  GEOLOCATION_WATCH_TIMEOUT_MS,
+  ROUTE_LINE_WIDTH,
+  ROUTE_STROKE_COLOR,
+  ROUTE_STROKE_OPACITY,
+  ROUTE_TRAVELED_COLOR,
+  ROUTE_TRAVELED_OPACITY,
+  ROUTE_WALKING_DASH,
+  ROUTE_CYCLING_DASH,
+  EARTH_RADIUS_METERS,
+} from '../../control';
 
 declare const mapkit: any;
 
@@ -79,22 +106,22 @@ export class AppleMapProvider implements MapProvider {
 
         // Check for selected POI
         if (this.selectedPOI) {
-          // Ignore clicks within 100ms of selection (same tap that selected the POI)
-          if (Date.now() - this.selectedPOI.selectedAt < 100) return;
+          // Ignore clicks within debounce period of selection (same tap that selected the POI)
+          if (Date.now() - this.selectedPOI.selectedAt < POI_SELECT_DEBOUNCE_MS) return;
 
           // Check if click was near the selected annotation
           // The enlarged POI icon is displayed ABOVE the coordinate point (pin tip),
-          // so we offset Y upward by ~35px to match the visual icon center
+          // so we offset Y upward to match the visual icon center
           const annCoord = this.selectedPOI.annotation.coordinate;
           const annPoint = this.map.convertCoordinateToPointOnPage(annCoord);
-          const iconCenterY = annPoint.y - 35;
+          const iconCenterY = annPoint.y - POI_ICON_OFFSET_Y;
 
           const dx = e.pageX - annPoint.x;
           const dy = e.pageY - iconCenterY;
           const distance = Math.sqrt(dx * dx + dy * dy);
 
-          // If click is within 45px of the icon center, show the card
-          if (distance < 45) {
+          // If click is within tap radius of the icon center, show the card
+          if (distance < POI_TAP_RADIUS) {
             this.showPlaceDetail(this.selectedPOI.id);
           }
         }
@@ -103,13 +130,13 @@ export class AppleMapProvider implements MapProvider {
         if (this.selectedMarker) {
           const annCoord = this.selectedMarker.annotation.coordinate;
           const annPoint = this.map.convertCoordinateToPointOnPage(annCoord);
-          const iconCenterY = annPoint.y - 35;
+          const iconCenterY = annPoint.y - POI_ICON_OFFSET_Y;
 
           const dx = e.pageX - annPoint.x;
           const dy = e.pageY - iconCenterY;
           const distance = Math.sqrt(dx * dx + dy * dy);
 
-          if (distance < 45) {
+          if (distance < POI_TAP_RADIUS) {
             const marker = this.selectedMarker.marker;
             if (marker.placeId) {
               this.showPlaceDetail(marker.placeId, marker);
@@ -145,7 +172,7 @@ export class AppleMapProvider implements MapProvider {
           clearInterval(check);
           resolve();
         }
-      }, 50);
+      }, MAPKIT_CHECK_INTERVAL_MS);
     });
   }
 
@@ -165,7 +192,7 @@ export class AppleMapProvider implements MapProvider {
     if (!this.map) return;
     // MapKit JS uses camera distance or span, not a simple zoom level.
     // We convert zoom level (0-20) to a span in degrees.
-    const span = 360 / Math.pow(2, level);
+    const span = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, level);
     const region = new mapkit.CoordinateRegion(
       this.map.center,
       new mapkit.CoordinateSpan(span, span)
@@ -177,12 +204,12 @@ export class AppleMapProvider implements MapProvider {
     if (!this.map) return 0;
     const span = this.map.region.span.latitudeDelta;
     // Inverse of: span = 360 / 2^zoom
-    return Math.log2(360 / span);
+    return Math.log2(MAPKIT_ZOOM_SPAN_BASE / span);
   }
 
   setCenterAndZoom(lat: number, lng: number, zoom: number, animated = true): void {
     if (!this.map) return;
-    const span = 360 / Math.pow(2, zoom);
+    const span = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, zoom);
     const region = new mapkit.CoordinateRegion(
       new mapkit.Coordinate(lat, lng),
       new mapkit.CoordinateSpan(span, span)
@@ -226,8 +253,8 @@ export class AppleMapProvider implements MapProvider {
     while (newLng > 180) newLng -= 360;
     while (newLng < -180) newLng += 360;
 
-    // Clamp latitude to -85 to 85 range (Web Mercator limits)
-    newLat = Math.max(-85, Math.min(85, newLat));
+    // Clamp latitude to Web Mercator limits
+    newLat = Math.max(MAPKIT_LAT_CLAMP_MIN, Math.min(MAPKIT_LAT_CLAMP_MAX, newLat));
 
     this.map.setCenterAnimated(new mapkit.Coordinate(newLat, newLng), false);
   }
@@ -259,8 +286,8 @@ export class AppleMapProvider implements MapProvider {
     const aspectRatio = currentSpan.longitudeDelta / currentSpan.latitudeDelta;
 
     // Step 2c: Calculate new zoom with delta
-    const requestedZoom = Math.max(1, Math.min(20, zoomAtEquator + zoomDelta));
-    const newLatSpan = 360 / Math.pow(2, requestedZoom);
+    const requestedZoom = Math.max(ZOOM_MIN_LEVEL, Math.min(ZOOM_MAX_LEVEL, zoomAtEquator + zoomDelta));
+    const newLatSpan = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, requestedZoom);
     const newLngSpan = newLatSpan * aspectRatio;
 
     // Step 2d: Apply zoom change at equator
@@ -272,10 +299,10 @@ export class AppleMapProvider implements MapProvider {
 
     // Step 2e: Read zoom again - if MapKit clamped it when zooming out, add epsilon
     const actualZoomAtEquator = this.getZoom();
-    if (zoomDelta < 0 && Math.abs(actualZoomAtEquator - requestedZoom) > 0.001) {
+    if (zoomDelta < 0 && Math.abs(actualZoomAtEquator - requestedZoom) > ZOOM_CLAMPING_EPSILON) {
       // MapKit clamped our zoom out request - add epsilon to stay away from limit
-      const adjustedZoom = actualZoomAtEquator + 0.0001;
-      const adjLatSpan = 360 / Math.pow(2, adjustedZoom);
+      const adjustedZoom = actualZoomAtEquator + ZOOM_LIMIT_EPSILON;
+      const adjLatSpan = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, adjustedZoom);
       const adjLngSpan = adjLatSpan * aspectRatio;
       equatorZoomRegion = new mapkit.CoordinateRegion(
         new mapkit.Coordinate(0, originalCenter.longitude),
@@ -293,7 +320,7 @@ export class AppleMapProvider implements MapProvider {
     // Check if zoom actually changed (compare before and after)
     const actualZoom = this.getZoom();
 
-    if (Math.abs(actualZoom - oldZoom) < 0.001) {
+    if (Math.abs(actualZoom - oldZoom) < ZOOM_CLAMPING_EPSILON) {
       // Zoom was clamped and didn't change, so don't do compensating pan
       // (otherwise we'd undo the pan that was done before calling this method)
       return;
@@ -339,7 +366,7 @@ export class AppleMapProvider implements MapProvider {
         {
           title: marker.title,
           subtitle: marker.subtitle || '',
-          color: '#e74c3c',
+          color: MARKER_COLOR,
         }
       );
       this.markerMap.set(annotation, marker);
@@ -629,7 +656,7 @@ export class AppleMapProvider implements MapProvider {
         (error) => {
           reject(error);
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: GEOLOCATION_TIMEOUT_MS }
       );
     });
   }
@@ -862,18 +889,18 @@ export class AppleMapProvider implements MapProvider {
 
     // Create style based on transport type
     const styleOptions: any = {
-      lineWidth: 6,
-      strokeColor: '#007AFF',
-      strokeOpacity: 0.9,
+      lineWidth: ROUTE_LINE_WIDTH,
+      strokeColor: ROUTE_STROKE_COLOR,
+      strokeOpacity: ROUTE_STROKE_OPACITY,
     };
 
     if (transport === 'Walking') {
       // Dotted line (small circles) for walking
-      styleOptions.lineDash = [1, 15];
+      styleOptions.lineDash = [...ROUTE_WALKING_DASH];
       styleOptions.lineCap = 'round';
     } else if (transport === 'Cycling') {
       // Dashed line for cycling
-      styleOptions.lineDash = [8, 12];
+      styleOptions.lineDash = [...ROUTE_CYCLING_DASH];
       styleOptions.lineCap = 'round';
     }
     // Automobile uses solid line (no lineDash)
@@ -955,7 +982,7 @@ export class AppleMapProvider implements MapProvider {
    * Calculate the Haversine distance between two points in meters.
    */
   private haversineDistance(point1: LatLng, point2: LatLng): number {
-    const R = 6371000; // Earth's radius in meters
+    const R = EARTH_RADIUS_METERS;
     const lat1 = point1.lat * Math.PI / 180;
     const lat2 = point2.lat * Math.PI / 180;
     const deltaLat = (point2.lat - point1.lat) * Math.PI / 180;
@@ -1004,28 +1031,28 @@ export class AppleMapProvider implements MapProvider {
 
     // Create style for traveled portion (grey)
     const traveledStyleOptions: any = {
-      lineWidth: 6,
-      strokeColor: '#8E8E93', // Grey color
-      strokeOpacity: 0.7,
+      lineWidth: ROUTE_LINE_WIDTH,
+      strokeColor: ROUTE_TRAVELED_COLOR,
+      strokeOpacity: ROUTE_TRAVELED_OPACITY,
     };
 
     // Create style for remaining portion (blue)
     const remainingStyleOptions: any = {
-      lineWidth: 6,
-      strokeColor: '#007AFF',
-      strokeOpacity: 0.9,
+      lineWidth: ROUTE_LINE_WIDTH,
+      strokeColor: ROUTE_STROKE_COLOR,
+      strokeOpacity: ROUTE_STROKE_OPACITY,
     };
 
     // Apply transport-specific line dash patterns
     if (this.currentTransport === 'Walking') {
-      traveledStyleOptions.lineDash = [1, 15];
+      traveledStyleOptions.lineDash = [...ROUTE_WALKING_DASH];
       traveledStyleOptions.lineCap = 'round';
-      remainingStyleOptions.lineDash = [1, 15];
+      remainingStyleOptions.lineDash = [...ROUTE_WALKING_DASH];
       remainingStyleOptions.lineCap = 'round';
     } else if (this.currentTransport === 'Cycling') {
-      traveledStyleOptions.lineDash = [8, 12];
+      traveledStyleOptions.lineDash = [...ROUTE_CYCLING_DASH];
       traveledStyleOptions.lineCap = 'round';
-      remainingStyleOptions.lineDash = [8, 12];
+      remainingStyleOptions.lineDash = [...ROUTE_CYCLING_DASH];
       remainingStyleOptions.lineCap = 'round';
     }
 
@@ -1092,7 +1119,7 @@ export class AppleMapProvider implements MapProvider {
     if (!navigator.geolocation) return;
 
     // Get fast network-based position first (low accuracy but instant)
-    // Limit wait to 2 seconds - on desktop or when location unavailable, continue without it
+    // Limit wait - on desktop or when location unavailable, continue without it
     // Use Promise.race with explicit timeout since getCurrentPosition timeout is unreliable
     await Promise.race([
       new Promise<void>((resolve) => {
@@ -1105,10 +1132,10 @@ export class AppleMapProvider implements MapProvider {
             resolve();
           },
           () => resolve(), // Resolve anyway on error, don't block
-          { enableHighAccuracy: false, maximumAge: Infinity, timeout: 2000 }
+          { enableHighAccuracy: false, maximumAge: Infinity, timeout: GEOLOCATION_FAST_TIMEOUT_MS }
         );
       }),
-      new Promise<void>((resolve) => setTimeout(resolve, 2000)), // Fallback timeout
+      new Promise<void>((resolve) => setTimeout(resolve, GEOLOCATION_FAST_TIMEOUT_MS)), // Fallback timeout
     ]);
 
     // Watch for position updates (will refine with GPS over time)
@@ -1125,7 +1152,7 @@ export class AppleMapProvider implements MapProvider {
         }
       },
       () => {}, // Ignore errors for background tracking
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: GEOLOCATION_WATCH_MAX_AGE_MS, timeout: GEOLOCATION_WATCH_TIMEOUT_MS }
     );
   }
 
@@ -1146,7 +1173,7 @@ export class AppleMapProvider implements MapProvider {
         this.cachedUserLocation.lng
       );
       const zoomLevel = zoom ?? this.getZoom();
-      const span = 360 / Math.pow(2, zoomLevel);
+      const span = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, zoomLevel);
       const region = new mapkit.CoordinateRegion(
         coord,
         new mapkit.CoordinateSpan(span, span)
@@ -1177,7 +1204,7 @@ export class AppleMapProvider implements MapProvider {
             position.coords.longitude
           );
           const zoomLevel = zoom ?? this.getZoom();
-          const span = 360 / Math.pow(2, zoomLevel);
+          const span = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, zoomLevel);
           const region = new mapkit.CoordinateRegion(
             coord,
             new mapkit.CoordinateSpan(span, span)
@@ -1189,7 +1216,7 @@ export class AppleMapProvider implements MapProvider {
           console.warn('Geolocation error:', error.message);
           reject(error);
         },
-        { enableHighAccuracy: false, maximumAge: 0, timeout: 5000 }
+        { enableHighAccuracy: false, maximumAge: 0, timeout: GEOLOCATION_FALLBACK_TIMEOUT_MS }
       );
     });
   }

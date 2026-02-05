@@ -3,14 +3,23 @@ import { InteractionHandler } from '../types';
 import { TrailVisualizer } from '../../visualization/TrailVisualizer';
 import { EdgeIndicator } from '../../visualization/EdgeIndicator';
 import { GearIndicator } from '../../visualization/GearIndicator';
-
-/**
- * Rotation mode control:
- * - 'edge': Red/blue edge indicators with auto-rotation when finger is near edges (no gear)
- * - 'gear': Gear indicator visible, rotation controlled by vertical drag when gear is near edge
- */
-type RotationMode = 'edge' | 'gear';
-const ROTATION_MODE: RotationMode = 'gear';
+import {
+  ROTATION_MODE,
+  ROTATION_SPEED_DEG_PER_SEC,
+  ROTATION_DELTA_THRESHOLD,
+  ROTATION_MAX_DT,
+  ROTATION_EDGE_THRESHOLD_RATIO,
+  INERTIA_MAX_VELOCITY_SAMPLES,
+  INERTIA_FRICTION,
+  INERTIA_MIN_VELOCITY,
+  INERTIA_SAMPLE_WINDOW_MS,
+  INPUT_PREDICTION_MS,
+  FINGER_VELOCITY_SMOOTHING,
+  FINGER_MAX_DT,
+  ZOOM_MIN_DELTA,
+  ZOOM_WHEEL_SENSITIVITY,
+  PAN_THRESHOLD,
+} from '../../control';
 
 interface PointerState {
   pointerId: number;
@@ -38,10 +47,7 @@ export class PassThroughHandler implements InteractionHandler {
 
   // Inertia state
   private velocitySamples: VelocitySample[] = [];
-  private readonly maxVelocitySamples = 5;
   private inertiaAnimationId: number | null = null;
-  private readonly friction = 0.95; // Deceleration factor per frame
-  private readonly minVelocity = 0.5; // Stop when velocity drops below this
 
   // Track the centroid of two-finger gestures for panning
   private lastTwoFingerCentroid: { x: number; y: number } | null = null;
@@ -83,7 +89,6 @@ export class PassThroughHandler implements InteractionHandler {
   private fingerVelocityX: number = 0;
   private fingerVelocityY: number = 0;
   private lastFingerUpdateTime: number = 0;
-  private readonly predictionMs: number = 0;//16;//32; // Predict ~1 frame ahead
 
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
@@ -136,8 +141,8 @@ export class PassThroughHandler implements InteractionHandler {
 
       // Calculate predicted finger position based on velocity
       // This compensates for input lag by extrapolating where the finger will be
-      const predictedX = this.latestFingerX + this.fingerVelocityX * (this.predictionMs / 1000);
-      const predictedY = this.latestFingerY + this.fingerVelocityY * (this.predictionMs / 1000);
+      const predictedX = this.latestFingerX + this.fingerVelocityX * (INPUT_PREDICTION_MS / 1000);
+      const predictedY = this.latestFingerY + this.fingerVelocityY * (INPUT_PREDICTION_MS / 1000);
 
       // Handle gear rotation using predicted coordinates
       // Rotation is applied here (not in onPointerMove) so it uses predicted position
@@ -158,7 +163,7 @@ export class PassThroughHandler implements InteractionHandler {
             rotationDelta = -rotationRate; // Right edge: down = CCW
           }
 
-          if (Math.abs(rotationDelta) > 0.01) {
+          if (Math.abs(rotationDelta) > ROTATION_DELTA_THRESHOLD) {
             const rotation = this.currentMapProvider.getRotation();
             this.currentMapProvider.setRotation(rotation + rotationDelta, false);
           }
@@ -223,10 +228,10 @@ export class PassThroughHandler implements InteractionHandler {
     this.lastRotationTime = now;
 
     // Clamp dt to prevent huge jumps
-    const clampedDt = Math.min(dt, 0.1);
+    const clampedDt = Math.min(dt, ROTATION_MAX_DT);
 
-    // Rotation speed: 90 degrees per second at full progress
-    const rotationSpeed = 90;
+    // Rotation speed: degrees per second at full progress
+    const rotationSpeed = ROTATION_SPEED_DEG_PER_SEC;
     const rotationDelta = rate * rotationSpeed * clampedDt;
     const currentRotation = this.currentMapProvider.getRotation();
     this.currentMapProvider.setRotation(currentRotation + rotationDelta, false);
@@ -454,9 +459,9 @@ export class PassThroughHandler implements InteractionHandler {
       const fingerUpdateTime = performance.now();
       if (this.lastFingerUpdateTime > 0) {
         const fingerDt = (fingerUpdateTime - this.lastFingerUpdateTime) / 1000;
-        if (fingerDt > 0 && fingerDt < 0.1) { // Ignore huge gaps
+        if (fingerDt > 0 && fingerDt < FINGER_MAX_DT) { // Ignore huge gaps
           // Exponential smoothing for velocity
-          const alpha = 0.5;
+          const alpha = FINGER_VELOCITY_SMOOTHING;
           const newVx = (e.clientX - this.latestFingerX) / fingerDt;
           const newVy = (e.clientY - this.latestFingerY) / fingerDt;
           this.fingerVelocityX = alpha * newVx + (1 - alpha) * this.fingerVelocityX;
@@ -478,9 +483,9 @@ export class PassThroughHandler implements InteractionHandler {
         if (this.mapAnchorPos) {
           const anchorScreen = this.getScreenPointForCoordinate(mapProvider, this.mapAnchorPos, viewport);
           if (anchorScreen) {
-            // Check if gear is within 1/16th of screen width from any edge
+            // Check if gear is within threshold of screen width from any edge
             const rect = viewport.getBoundingClientRect();
-            const edgeThreshold = rect.width / 10.0;
+            const edgeThreshold = rect.width / ROTATION_EDGE_THRESHOLD_RATIO;
             const distanceFromLeft = anchorScreen.x;
             const distanceFromRight = rect.width - anchorScreen.x;
             // Only consider left/right edges for gear rotation (not top/bottom)
@@ -522,7 +527,7 @@ export class PassThroughHandler implements InteractionHandler {
       }
 
       // Apply zoom if needed
-      if (Math.abs(zoomDelta) > 0.0001) {
+      if (Math.abs(zoomDelta) > ZOOM_MIN_DELTA) {
         const rect = viewport.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -538,7 +543,7 @@ export class PassThroughHandler implements InteractionHandler {
         const vy = (e.clientY - pointer.lastY) / (dt * 1000);
         this.velocitySamples.push({ vx, vy, time: now });
         // Keep only recent samples
-        if (this.velocitySamples.length > this.maxVelocitySamples) {
+        if (this.velocitySamples.length > INERTIA_MAX_VELOCITY_SAMPLES) {
           this.velocitySamples.shift();
         }
       }
@@ -564,7 +569,7 @@ export class PassThroughHandler implements InteractionHandler {
         const panDx = centroidX - this.lastTwoFingerCentroid.x;
         const panDy = centroidY - this.lastTwoFingerCentroid.y;
 
-        if (Math.abs(panDx) > 0.1 || Math.abs(panDy) > 0.1) {
+        if (Math.abs(panDx) > PAN_THRESHOLD || Math.abs(panDy) > PAN_THRESHOLD) {
           mapProvider.panBy(-panDx, -panDy);
         }
       }
@@ -643,7 +648,7 @@ export class PassThroughHandler implements InteractionHandler {
 
   onWheel(e: WheelEvent, mapProvider: MapProvider): void {
     // Normalize wheel delta to a zoom increment
-    const zoomDelta = -e.deltaY * 0.002;
+    const zoomDelta = -e.deltaY * ZOOM_WHEEL_SENSITIVITY;
     // Use offsetX/offsetY which are already relative to the target element
     mapProvider.zoomAtPoint(e.offsetX, e.offsetY, zoomDelta);
   }
@@ -667,9 +672,9 @@ export class PassThroughHandler implements InteractionHandler {
       return;
     }
 
-    // Only use recent samples (within last 100ms)
+    // Only use recent samples (within last window)
     const now = performance.now();
-    const recentSamples = this.velocitySamples.filter(s => now - s.time < 100);
+    const recentSamples = this.velocitySamples.filter(s => now - s.time < INERTIA_SAMPLE_WINDOW_MS);
 
     if (recentSamples.length < 2) {
       this.velocitySamples = [];
@@ -707,7 +712,7 @@ export class PassThroughHandler implements InteractionHandler {
 
     // Check if velocity is significant enough to animate
     const speed = Math.sqrt(vx * vx + vy * vy);
-    if (speed < this.minVelocity) {
+    if (speed < INERTIA_MIN_VELOCITY) {
       return;
     }
 
@@ -721,12 +726,12 @@ export class PassThroughHandler implements InteractionHandler {
       }
 
       // Apply friction
-      vx *= this.friction;
-      vy *= this.friction;
+      vx *= INERTIA_FRICTION;
+      vy *= INERTIA_FRICTION;
 
       // Check if we should continue
       const currentSpeed = Math.sqrt(vx * vx + vy * vy);
-      if (currentSpeed > this.minVelocity) {
+      if (currentSpeed > INERTIA_MIN_VELOCITY) {
         this.inertiaAnimationId = requestAnimationFrame(animate);
       } else {
         this.inertiaAnimationId = null;

@@ -1,4 +1,5 @@
 import { MapProvider } from '../map/types';
+import { LOCATION_BUTTON_ZOOM } from '../control';
 
 interface StopInertiaFn {
   stopInertia(): void;
@@ -37,8 +38,8 @@ export class MapControls {
     this.handler?.stopInertia();
     // Reset rotation to north
     this.mapProvider.setRotation(0, false);
-    // Center on user location with zoom 17
-    this.mapProvider.centerOnUserLocation(17).catch(() => {
+    // Center on user location
+    this.mapProvider.centerOnUserLocation(LOCATION_BUTTON_ZOOM).catch(() => {
       console.warn('Geolocation permission denied or unavailable.');
     });
   }

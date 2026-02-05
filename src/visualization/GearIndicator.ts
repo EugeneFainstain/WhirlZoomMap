@@ -1,7 +1,12 @@
+import {
+  ROTATION_EDGE_THRESHOLD_RATIO,
+  GEAR_Z_INDEX,
+  GEAR_COLOR_ROTATION,
+} from '../control';
+
 /**
  * GearIndicator - Shows a green gear icon at the map anchor position
- * when the finger enters the rotation zone (within 1/16th of screen width
- * from the left or right edge) during single-finger drag.
+ * when the finger enters the rotation zone during single-finger drag.
  *
  * The gear appears instantly at full opacity and rotates with the map.
  */
@@ -28,7 +33,7 @@ export class GearIndicator {
     this.gearElement.innerHTML = GearIndicator.GEAR_SVG;
     this.gearElement.style.position = 'absolute';
     this.gearElement.style.pointerEvents = 'none';
-    this.gearElement.style.zIndex = '999';
+    this.gearElement.style.zIndex = String(GEAR_Z_INDEX);
     this.gearElement.style.opacity = '0';
     this.gearElement.style.transform = 'translate(-50%, -50%)';
     // No transition - gear appears/disappears instantly
@@ -63,8 +68,8 @@ export class GearIndicator {
 
     const rect = this.container.getBoundingClientRect();
 
-    // Rotation zone threshold - gear appears when finger is within 1/16th of screen width from edge
-    const rotationThreshold = rect.width / 10.0;
+    // Rotation zone threshold - gear appears when finger is within threshold from edge
+    const rotationThreshold = rect.width / ROTATION_EDGE_THRESHOLD_RATIO;
 
     // Distance from left/right edges only (gear rotation only works on horizontal edges)
     const distanceFromRight = rect.right - fingerX;
@@ -91,7 +96,7 @@ export class GearIndicator {
     if (!this.isInRotationZone && opacity > 0) {
       this.isInRotationZone = true;
       if (this.gearFillGroup) {
-        this.gearFillGroup.setAttribute('fill', '#22c55e');
+        this.gearFillGroup.setAttribute('fill', GEAR_COLOR_ROTATION);
       }
     } else if (this.isInRotationZone && opacity === 0) {
       this.isInRotationZone = false;

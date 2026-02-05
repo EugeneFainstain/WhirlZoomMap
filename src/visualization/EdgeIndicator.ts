@@ -1,3 +1,15 @@
+import {
+  EDGE_BAR_GAP_PX,
+  EDGE_BAR_WIDTH_DIVISOR,
+  EDGE_BAR_Z_INDEX,
+  EDGE_BAR_OPACITY,
+  EDGE_BAR_COLOR_RED,
+  EDGE_BAR_COLOR_BLUE,
+  EDGE_START_THRESHOLD_RATIO,
+  EDGE_END_THRESHOLD_RATIO,
+  EDGE_ROTATION_THRESHOLD_RATIO,
+} from '../control';
+
 /**
  * EdgeIndicator - Shows colored vertical bars sliding in from screen edges
  * when the user drags near the edges during single-finger map dragging.
@@ -14,8 +26,7 @@ export class EdgeIndicator {
   private leftTopBar: HTMLElement;
   private leftBottomBar: HTMLElement;
 
-  // Configuration
-  private readonly gapSize = 8; // Gap between top and bottom bars in pixels
+  // Configuration uses constants from control.ts
 
   // Current rotation rate (positive = CW, negative = CCW)
   private currentRotationRate: number = 0;
@@ -60,18 +71,18 @@ export class EdgeIndicator {
   private createBar(color: 'red' | 'blue'): HTMLElement {
     const bar = document.createElement('div');
     bar.style.position = 'absolute';
-    bar.style.backgroundColor = color === 'red' ? '#ff4444' : '#4444ff';
+    bar.style.backgroundColor = color === 'red' ? EDGE_BAR_COLOR_RED : EDGE_BAR_COLOR_BLUE;
     bar.style.pointerEvents = 'none';
-    bar.style.zIndex = '1000';
-    bar.style.opacity = '0.8';
+    bar.style.zIndex = String(EDGE_BAR_Z_INDEX);
+    bar.style.opacity = String(EDGE_BAR_OPACITY);
     bar.style.transition = 'none'; // We'll animate via transform
     return bar;
   }
 
   private positionBars = (): void => {
     const rect = this.container.getBoundingClientRect();
-    const barWidth = Math.max(2, Math.floor(rect.width / 64));
-    const halfHeight = (rect.height - this.gapSize) / 2;
+    const barWidth = Math.max(2, Math.floor(rect.width / EDGE_BAR_WIDTH_DIVISOR));
+    const halfHeight = (rect.height - EDGE_BAR_GAP_PX) / 2;
 
     // Right side bars - positioned off-screen initially
     this.rightTopBar.style.right = `-${barWidth}px`;
@@ -109,11 +120,11 @@ export class EdgeIndicator {
     }
 
     const rect = this.container.getBoundingClientRect();
-    const barWidth = Math.max(2, Math.floor(rect.width / 64));
+    const barWidth = Math.max(2, Math.floor(rect.width / EDGE_BAR_WIDTH_DIVISOR));
 
     // Calculate thresholds
-    const startThreshold = rect.width / 8;  // Start sliding in at 1/8 from edge
-    const endThreshold = rect.width / 16;   // Fully visible at 1/16 from edge
+    const startThreshold = rect.width / EDGE_START_THRESHOLD_RATIO;
+    const endThreshold = rect.width / EDGE_END_THRESHOLD_RATIO;
 
     // Distance from edges (relative to container)
     const distanceFromRight = rect.right - fingerX;
@@ -144,8 +155,8 @@ export class EdgeIndicator {
     this.leftTopBar.style.transform = `translateX(${barWidth - leftOffset}px)`;
     this.leftBottomBar.style.transform = `translateX(${barWidth - leftOffset}px)`;
 
-    // Calculate rotation rate - full speed when within 1/16th from edge
-    const rotationThreshold = rect.width / 16;
+    // Calculate rotation rate - full speed when within threshold from edge
+    const rotationThreshold = rect.width / EDGE_ROTATION_THRESHOLD_RATIO;
 
     const rightRotationActive = distanceFromRight <= rotationThreshold;
     const leftRotationActive = distanceFromLeft <= rotationThreshold;

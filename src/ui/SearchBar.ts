@@ -1,4 +1,10 @@
 import { MapProvider } from '../map/types';
+import {
+  SEARCH_DEBOUNCE_MS,
+  SEARCH_MAX_AUTOCOMPLETE_RESULTS,
+  SEARCH_DEFAULT_ZOOM,
+  DEBUG_TOGGLE_TAP_COUNT,
+} from '../control';
 
 declare const mapkit: any;
 
@@ -240,7 +246,7 @@ export class SearchBar {
       clearTimeout(debounceTimer);
       debounceTimer = window.setTimeout(() => {
         this.performSearch(input.value);
-      }, 300);
+      }, SEARCH_DEBOUNCE_MS);
     });
 
     input.addEventListener('keydown', (e) => {
@@ -265,7 +271,7 @@ export class SearchBar {
 
       // Track taps for debug controls toggle
       this.clearTapCount++;
-      if (this.clearTapCount >= 4) {
+      if (this.clearTapCount >= DEBUG_TOGGLE_TAP_COUNT) {
         const debugControls = document.getElementById('debug-controls');
         if (debugControls) {
           debugControls.classList.toggle('hidden');
@@ -338,7 +344,7 @@ export class SearchBar {
     }
 
     resultsEl.innerHTML = results
-      .slice(0, 5)
+      .slice(0, SEARCH_MAX_AUTOCOMPLETE_RESULTS)
       .map((result: any, i: number) => {
         const lines = result.displayLines || [];
         return `
@@ -410,7 +416,7 @@ export class SearchBar {
       if (error || !data.places || data.places.length === 0) return;
 
       const place = data.places[0];
-      this.mapProvider.setCenterAndZoom(place.coordinate.latitude, place.coordinate.longitude, 15);
+      this.mapProvider.setCenterAndZoom(place.coordinate.latitude, place.coordinate.longitude, SEARCH_DEFAULT_ZOOM);
 
       // Add a pin - use simple address card (no placeId) since we have the data
       this.mapProvider.addMarkers([{

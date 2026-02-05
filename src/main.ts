@@ -7,6 +7,7 @@ import { SearchBar } from './ui/SearchBar';
 import { TrailVisualizer } from './visualization/TrailVisualizer';
 import { EdgeIndicator } from './visualization/EdgeIndicator';
 import { GearIndicator } from './visualization/GearIndicator';
+import { DOUBLE_TAP_THRESHOLD_MS, LOCATION_BUTTON_ZOOM } from './control';
 
 // Prevent browser double-tap-to-zoom (shadow DOM elements bypass CSS touch-action)
 let lastTouchEnd = 0;
@@ -14,7 +15,7 @@ document.addEventListener('touchend', (e) => {
   const now = Date.now();
   const target = e.target as HTMLElement;
   const isInteractive = target.closest('button, a, input, [role="button"]');
-  if (now - lastTouchEnd <= 300 && !isInteractive) {
+  if (now - lastTouchEnd <= DOUBLE_TAP_THRESHOLD_MS && !isInteractive) {
     e.preventDefault();
   }
   lastTouchEnd = now;
@@ -36,8 +37,8 @@ async function main() {
     rotation: config.defaults.rotation,
   });
 
-  // Center on user's current location (zoom 17 ≈ 3 city blocks)
-  mapProvider.centerOnUserLocation(17).catch((err) => {
+  // Center on user's current location
+  mapProvider.centerOnUserLocation(LOCATION_BUTTON_ZOOM).catch((err) => {
     console.warn('Could not center on user location:', err.message);
   });
 

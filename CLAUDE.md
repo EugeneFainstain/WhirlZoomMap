@@ -30,6 +30,29 @@ A transparent div sits on top of the map and captures all pointer/wheel events. 
 - **`src/main.ts`** — Wires together the map provider, interaction layer, and UI components
 - **`src/config.ts`** — Reads configuration from environment variables
 
+### Configuration (`src/control.ts`)
+Centralized constants file containing all tunable parameters. Organized by functional area:
+
+| Section | Constants | Description |
+|---------|-----------|-------------|
+| **TOUCH_INTERACTION** | `DOUBLE_TAP_THRESHOLD_MS` | Timing for double-tap detection |
+| **ROTATION** | `ROTATION_MODE`, `ROTATION_SPEED_DEG_PER_FRAME` | Rotation behavior and speed |
+| **EDGE_INDICATOR** | `EDGE_BAR_*`, `EDGE_*_THRESHOLD_RATIO` | Edge bar styling and trigger zones |
+| **GEAR_INDICATOR** | `GEAR_*`, `ROTATION_EDGE_THRESHOLD_RATIO` | Gear icon styling and position |
+| **INERTIA** | `INERTIA_FRICTION`, `INERTIA_MIN_VELOCITY`, etc. | Pan momentum physics |
+| **INPUT_PREDICTION** | `INPUT_PREDICTION_*` | Touch input smoothing |
+| **ZOOM** | `ZOOM_*`, `MAPKIT_ZOOM_*` | Zoom thresholds and limits |
+| **VISUALIZATION** | `TRAIL_*`, `SPIRAL_*`, `ZOOM_AREA_*` | Trail and area circle rendering |
+| **MAP_DEFAULTS** | `MAP_DEFAULT_CENTER`, `MAP_DEFAULT_ZOOM`, etc. | Initial map state |
+| **GEOLOCATION** | `GEOLOCATION_*` | GPS timeout and update frequency |
+| **ROUTES** | `ROUTE_*` | Polyline styling |
+| **POI** | `POI_*` | Point of interest detection |
+| **UI** | `SEARCH_*`, `DEBUG_*`, `LOCATION_BUTTON_ZOOM` | Search and UI behavior |
+
+Screen-dimension-dependent values are expressed as ratios (e.g., `ROTATION_EDGE_THRESHOLD_RATIO = 10` means `rect.width / 10`).
+
+**Important:** `control.ts` has no imports from other project files to avoid circular dependencies.
+
 ## Tech Stack
 - **TypeScript** (vanilla, no framework)
 - **Vite** (dev server + bundler)

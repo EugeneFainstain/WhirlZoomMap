@@ -1,3 +1,36 @@
+import {
+  TRAIL_DURATION_MS,
+  VIRTUAL_TOUCH_DURATION_MS,
+  TRAIL_CIRCLE_RADIUS,
+  TRAIL_LINE_WIDTH,
+  TRAIL_STROKE_COLOR,
+  TRAIL_FILL_COLOR,
+  TRAIL_TRIANGLE_COLOR_POSITIVE,
+  TRAIL_TRIANGLE_COLOR_NEGATIVE,
+  TRAIL_CIRCLE_COLOR_POSITIVE,
+  TRAIL_CIRCLE_COLOR_NEGATIVE,
+  TRAIL_THRESHOLD_COLOR,
+  TRAIL_THRESHOLD_FILL_COLOR,
+  ZOOM_AREA_THRESHOLD,
+  ZOOM_ALT1_THRESHOLD,
+  ZOOM_FULL_CIRCLES_MULT,
+  ZOOM_RATE_COEFF,
+  ZOOM_BLOCK_DURATION_MS,
+  SPIRAL_BASE_RADIUS,
+  SPIRAL_RADIUS_GROWTH,
+  SPIRAL_SEGMENTS,
+  SPIRAL_LINE_WIDTH,
+  SPIRAL_START_ANGLE,
+  AREA_CIRCLE_X_RATIO,
+  PRODUCT_CIRCLE_X_RATIO,
+  INDICATOR_CIRCLE_DEFAULT_Y,
+  INDICATOR_CIRCLE_SCALE,
+  INDICATOR_STROKE_WIDTH,
+  ZOOM_TEXT_FONT,
+  ZOOM_TEXT_COLOR,
+  ZOOM_TEXT_X_OFFSET,
+} from '../control';
+
 interface TrailPoint {
   x: number;
   y: number;
@@ -16,14 +49,6 @@ interface VirtualTouchPoint {
 }
 
 export class TrailVisualizer {
-  private readonly trailDuration       : number = 250;  // milliseconds
-  private readonly virtualTouchDuration: number = 2000; // milliseconds
-  private readonly circleRadius        : number = 6;    // 2x the line width (3 * 2)
-  private readonly areaThreshold       : number = 1000; // Area threshold for zoom activation
-  private readonly alt1Threshold       : number = 500;  // Alt1 threshold for zoom activation
-  private readonly fullCirclesMult     : number = 2.0;  // Multiplier for the fullCircles result
-  private readonly zoomRateCoeff       : number = 20;   // Adjust this for zoom sensitivity
-  private readonly zoomBlockDuration   : number = 250;  // Guard-rail timeout in milliseconds
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -53,8 +78,8 @@ export class TrailVisualizer {
     window.addEventListener('resize', () => this.resizeCanvas());
 
     // Configure drawing style
-    this.ctx.strokeStyle = 'rgba(70, 70, 70, 0.8)';
-    this.ctx.lineWidth = 3;
+    this.ctx.strokeStyle = TRAIL_STROKE_COLOR;
+    this.ctx.lineWidth = TRAIL_LINE_WIDTH;
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
   }
@@ -64,8 +89,8 @@ export class TrailVisualizer {
     this.canvas.height = window.innerHeight;
 
     // Reapply styles after resize
-    this.ctx.strokeStyle = 'rgba(70, 70, 70, 0.8)';
-    this.ctx.lineWidth = 3;
+    this.ctx.strokeStyle = TRAIL_STROKE_COLOR;
+    this.ctx.lineWidth = TRAIL_LINE_WIDTH;
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
   }
@@ -92,7 +117,7 @@ export class TrailVisualizer {
       this.trail = [];
     } else {
       // Remove old points to keep trail bounded (even when not visualizing)
-      this.trail = this.trail.filter(point => now - point.timestamp <= this.trailDuration);
+      this.trail = this.trail.filter(point => now - point.timestamp <= TRAIL_DURATION_MS);
     }
 
     this.trail.push({ x, y, timestamp: now });
@@ -239,20 +264,20 @@ export class TrailVisualizer {
     const signedArea = this.getSignedArea();
     const fullCircles = this.getFullCircles();
     const signOfArea = signedArea >= 0 ? 1 : -1;
-    const compoundValMult = this.fullCirclesMult * this.fullCirclesMult;
+    const compoundValMult = ZOOM_FULL_CIRCLES_MULT * ZOOM_FULL_CIRCLES_MULT;
     return signedArea * fullCircles * compoundValMult * signOfArea;
   }
 
   getZoomRateCoeff(): number {
-    return this.zoomRateCoeff;
+    return ZOOM_RATE_COEFF;
   }
 
   getAreaThreshold(): number {
-    return this.areaThreshold;
+    return ZOOM_AREA_THRESHOLD;
   }
 
   getAlt1Threshold(): number {
-    return this.alt1Threshold;
+    return ZOOM_ALT1_THRESHOLD;
   }
 
   setZoomActivated(activated: boolean): void {
@@ -269,11 +294,11 @@ export class TrailVisualizer {
   }
 
   getZoomBlockDuration(): number {
-    return this.zoomBlockDuration;
+    return ZOOM_BLOCK_DURATION_MS;
   }
 
   private isZoomBlocked(): boolean {
-    return this.isRotating || (performance.now() - this.dragStartTime < this.zoomBlockDuration);
+    return this.isRotating || (performance.now() - this.dragStartTime < ZOOM_BLOCK_DURATION_MS);
   }
 
   setZoomGetter(getter: () => number): void {
@@ -283,21 +308,21 @@ export class TrailVisualizer {
   private drawSpiralArc(centerX: number, centerY: number, fullCircles: number): void {
     if (fullCircles === 0) return;
 
-    const baseRadius = 40; // Starting radius of the spiral
-    const radiusGrowth = 5; // How much the radius grows per full circle
-    const segments = 100; // Number of line segments to draw the spiral
+    const baseRadius = SPIRAL_BASE_RADIUS;
+    const radiusGrowth = SPIRAL_RADIUS_GROWTH;
+    const segments = SPIRAL_SEGMENTS;
 
     // Positive fullCircles = clockwise = red
     // Negative fullCircles = counter-clockwise = blue
     const isClockwise = fullCircles > 0;
-    const color = isClockwise ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
+    const color = isClockwise ? TRAIL_CIRCLE_COLOR_POSITIVE : TRAIL_CIRCLE_COLOR_NEGATIVE;
     const absFullCircles = Math.abs(fullCircles);
 
     // Total angle to sweep (in radians)
     const totalAngle = absFullCircles * 2 * Math.PI;
 
     this.ctx.strokeStyle = color;
-    this.ctx.lineWidth = 4;
+    this.ctx.lineWidth = SPIRAL_LINE_WIDTH;
     this.ctx.beginPath();
 
     for (let i = 0; i <= segments; i++) {
@@ -306,7 +331,7 @@ export class TrailVisualizer {
 
       // For clockwise (positive), start at top and go clockwise (negative angle direction)
       // For counter-clockwise (negative), start at top and go counter-clockwise (positive angle direction)
-      const startAngle = -Math.PI / 2; // Start at top
+      const startAngle = SPIRAL_START_ANGLE;
       const currentAngle = isClockwise ? startAngle + angle : startAngle - angle;
 
       // Spiral: radius increases with angle
@@ -334,10 +359,10 @@ export class TrailVisualizer {
     const now = performance.now();
 
     // Remove old points from trail
-    this.trail = this.trail.filter(point => now - point.timestamp <= this.trailDuration);
+    this.trail = this.trail.filter(point => now - point.timestamp <= TRAIL_DURATION_MS);
 
     // Check if virtual touch point has expired
-    if (this.virtualTouchPoint && now - this.virtualTouchPoint.timestamp > this.virtualTouchDuration) {
+    if (this.virtualTouchPoint && now - this.virtualTouchPoint.timestamp > VIRTUAL_TOUCH_DURATION_MS) {
       this.virtualTouchPoint = null;
     }
 
@@ -358,7 +383,7 @@ export class TrailVisualizer {
 
         // Choose color based on signed area
         // Positive (counterclockwise) = red, Negative (clockwise) = blue
-        this.ctx.fillStyle = signedArea > 0 ? 'rgba(255, 0, 0, 0.4)' : 'rgba(0, 100, 255, 0.4)';
+        this.ctx.fillStyle = signedArea > 0 ? TRAIL_TRIANGLE_COLOR_POSITIVE : TRAIL_TRIANGLE_COLOR_NEGATIVE;
 
         // Draw filled triangle
         this.ctx.beginPath();
@@ -372,8 +397,8 @@ export class TrailVisualizer {
 
     // Draw the trail
     if (this.trail.length >= 2) {
-      this.ctx.strokeStyle = 'rgba(70, 70, 70, 0.8)';
-      this.ctx.lineWidth = 3;
+      this.ctx.strokeStyle = TRAIL_STROKE_COLOR;
+      this.ctx.lineWidth = TRAIL_LINE_WIDTH;
       this.ctx.beginPath();
       this.ctx.moveTo(this.trail[0].x, this.trail[0].y);
 
@@ -388,9 +413,9 @@ export class TrailVisualizer {
     if (currentPoint) {
       // Get position: at 1/3 width, vertically aligned with visualize checkbox
       const visualizeToggle = document.getElementById('visualize-toggle');
-      const leftCircleX = this.canvas.width / 3;
-      const rightCircleX = this.canvas.width * 2 / 3;
-      let circleY = 110; // Default fallback
+      const leftCircleX = this.canvas.width / AREA_CIRCLE_X_RATIO;
+      const rightCircleX = this.canvas.width * 2 / AREA_CIRCLE_X_RATIO;
+      let circleY = INDICATOR_CIRCLE_DEFAULT_Y;
       if (visualizeToggle) {
         const rect = visualizeToggle.getBoundingClientRect();
         circleY = rect.top + rect.height / 2; // Vertically centered with checkbox
@@ -398,26 +423,26 @@ export class TrailVisualizer {
 
       // Draw green threshold circle (only visible before zoom activation)
       if (!this.zoomActivated) {
-        const thresholdRadius = Math.sqrt(this.areaThreshold) * 0.5;
+        const thresholdRadius = Math.sqrt(ZOOM_AREA_THRESHOLD) * INDICATOR_CIRCLE_SCALE;
         this.ctx.beginPath();
         this.ctx.arc(leftCircleX, circleY, thresholdRadius, 0, Math.PI * 2);
         if (this.isZoomBlocked()) {
           // Filled circle during zoom block period
-          this.ctx.fillStyle = 'rgba(0, 180, 0, 0.4)';
+          this.ctx.fillStyle = TRAIL_THRESHOLD_FILL_COLOR;
           this.ctx.fill();
         }
-        this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
-        this.ctx.lineWidth = 3;
+        this.ctx.strokeStyle = TRAIL_THRESHOLD_COLOR;
+        this.ctx.lineWidth = INDICATOR_STROKE_WIDTH;
         this.ctx.stroke();
       }
 
       // Draw red/blue area circle on top (only when there's area)
       if (totalSignedArea !== 0) {
-        const radius = Math.sqrt(Math.abs(totalSignedArea)) * 0.5; // Circle AREA is proportional to covered AREA
-        const color = totalSignedArea > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
+        const radius = Math.sqrt(Math.abs(totalSignedArea)) * INDICATOR_CIRCLE_SCALE;
+        const color = totalSignedArea > 0 ? TRAIL_CIRCLE_COLOR_POSITIVE : TRAIL_CIRCLE_COLOR_NEGATIVE;
 
         this.ctx.strokeStyle = color;
-        this.ctx.lineWidth = 3;
+        this.ctx.lineWidth = INDICATOR_STROKE_WIDTH;
         this.ctx.beginPath();
         this.ctx.arc(leftCircleX, circleY, radius, 0, Math.PI * 2);
         this.ctx.stroke();
@@ -431,30 +456,30 @@ export class TrailVisualizer {
 
       // Draw product visualization (signedArea * fullCircles * (fullCirclesMult^2) * sign(signedArea)) at 2/3 width
       const signOfArea = totalSignedArea >= 0 ? 1 : -1;
-      const compoundValMult = this.fullCirclesMult * this.fullCirclesMult;
+      const compoundValMult = ZOOM_FULL_CIRCLES_MULT * ZOOM_FULL_CIRCLES_MULT;
       const product = totalSignedArea * fullCircles * compoundValMult * signOfArea;
 
       // Draw green threshold circle for Alt1 (only visible before Alt1 zoom activation)
       if (!this.alt1ZoomActivated) {
-        const thresholdRadius = Math.sqrt(this.alt1Threshold) * 0.5;
+        const thresholdRadius = Math.sqrt(ZOOM_ALT1_THRESHOLD) * INDICATOR_CIRCLE_SCALE;
         this.ctx.beginPath();
         this.ctx.arc(rightCircleX, circleY, thresholdRadius, 0, Math.PI * 2);
         if (this.isZoomBlocked()) {
           // Filled circle during zoom block period
-          this.ctx.fillStyle = 'rgba(0, 180, 0, 0.4)';
+          this.ctx.fillStyle = TRAIL_THRESHOLD_FILL_COLOR;
           this.ctx.fill();
         }
-        this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
-        this.ctx.lineWidth = 3;
+        this.ctx.strokeStyle = TRAIL_THRESHOLD_COLOR;
+        this.ctx.lineWidth = INDICATOR_STROKE_WIDTH;
         this.ctx.stroke();
       }
 
       if (product !== 0) {
-        const productRadius = Math.sqrt(Math.abs(product)) * 0.5;
-        const productColor = product > 0 ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 100, 255, 0.8)';
+        const productRadius = Math.sqrt(Math.abs(product)) * INDICATOR_CIRCLE_SCALE;
+        const productColor = product > 0 ? TRAIL_CIRCLE_COLOR_POSITIVE : TRAIL_CIRCLE_COLOR_NEGATIVE;
 
         this.ctx.strokeStyle = productColor;
-        this.ctx.lineWidth = 3;
+        this.ctx.lineWidth = INDICATOR_STROKE_WIDTH;
         this.ctx.beginPath();
         this.ctx.arc(rightCircleX, circleY, productRadius, 0, Math.PI * 2);
         this.ctx.stroke();
@@ -464,8 +489,8 @@ export class TrailVisualizer {
     // Draw the circle at drag point or virtual touch point
     if (currentPoint) {
       this.ctx.beginPath();
-      this.ctx.arc(currentPoint.x, currentPoint.y, this.circleRadius, 0, Math.PI * 2);
-      this.ctx.fillStyle = 'rgba(70, 70, 70, 0.8)';
+      this.ctx.arc(currentPoint.x, currentPoint.y, TRAIL_CIRCLE_RADIUS, 0, Math.PI * 2);
+      this.ctx.fillStyle = TRAIL_FILL_COLOR;
       this.ctx.fill();
     }
 
@@ -482,11 +507,11 @@ export class TrailVisualizer {
         zoomY = rect.top + rect.height / 2;
       }
 
-      this.ctx.font = 'bold 16px sans-serif';
-      this.ctx.fillStyle = 'rgba(70, 70, 70, 0.9)';
+      this.ctx.font = ZOOM_TEXT_FONT;
+      this.ctx.fillStyle = ZOOM_TEXT_COLOR;
       this.ctx.textAlign = 'right';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(zoomText, this.canvas.width - 10, zoomY);
+      this.ctx.fillText(zoomText, this.canvas.width - ZOOM_TEXT_X_OFFSET, zoomY);
     }
   }
 
