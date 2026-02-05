@@ -6,6 +6,7 @@ import { MapControls } from './ui/MapControls';
 import { SearchBar } from './ui/SearchBar';
 import { TrailVisualizer } from './visualization/TrailVisualizer';
 import { EdgeIndicator } from './visualization/EdgeIndicator';
+import { GearIndicator } from './visualization/GearIndicator';
 
 // Prevent browser double-tap-to-zoom (shadow DOM elements bypass CSS touch-action)
 let lastTouchEnd = 0;
@@ -53,6 +54,10 @@ async function main() {
   const edgeIndicator = new EdgeIndicator(interactionElement);
   handler.setEdgeIndicator(edgeIndicator);
 
+  // Set up gear indicator for showing anchor point near edges
+  const gearIndicator = new GearIndicator(interactionElement);
+  handler.setGearIndicator(gearIndicator);
+
   const interactionLayer = new InteractionLayer(interactionElement, handler, mapProvider);
 
   // Set up UI
@@ -90,6 +95,7 @@ async function main() {
       searchBar,
       trailVisualizer,
       edgeIndicator,
+      gearIndicator,
     };
   }
 }

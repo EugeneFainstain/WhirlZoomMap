@@ -2,6 +2,7 @@ import { MapProvider } from '../../map/types';
 import { InteractionHandler } from '../types';
 import { TrailVisualizer } from '../../visualization/TrailVisualizer';
 import { EdgeIndicator } from '../../visualization/EdgeIndicator';
+import { GearIndicator } from '../../visualization/GearIndicator';
 
 interface PointerState {
   pointerId: number;
@@ -22,6 +23,7 @@ export class PassThroughHandler implements InteractionHandler {
   private pointers: Map<number, PointerState> = new Map();
   private visualizer: TrailVisualizer | null = null;
   private edgeIndicator: EdgeIndicator | null = null;
+  private gearIndicator: GearIndicator | null = null;
 
   // The geographic coordinate that should stay under the finger during drag
   private mapAnchorPos: { lat: number; lng: number } | null = null;
@@ -89,6 +91,10 @@ export class PassThroughHandler implements InteractionHandler {
     }
   }
 
+  setGearIndicator(gearIndicator: GearIndicator | null): void {
+    this.gearIndicator = gearIndicator;
+  }
+
   private applyEdgeRotation(rate: number): void {
     if (!this.currentMapProvider || !this.mapAnchorPos) return;
 
@@ -112,6 +118,15 @@ export class PassThroughHandler implements InteractionHandler {
       this.draggingFingerX,
       this.draggingFingerY
     );
+
+    // Update gear indicator every frame during rotation
+    if (this.gearIndicator && this.viewport) {
+      const anchorScreen = this.getScreenPointForCoordinate(this.currentMapProvider, this.mapAnchorPos, this.viewport);
+      if (anchorScreen) {
+        const rotation = this.currentMapProvider.getRotation();
+        this.gearIndicator.update(this.draggingFingerX, this.draggingFingerY, anchorScreen.x, anchorScreen.y, true, rotation);
+      }
+    }
   }
 
   setAlt1Mode(enabled: boolean): void {
@@ -155,6 +170,26 @@ export class PassThroughHandler implements InteractionHandler {
 
     // Apply the pan
     mapProvider.panBy(panPixelsX, panPixelsY);
+  }
+
+  private getScreenPointForCoordinate(
+    mapProvider: MapProvider,
+    coord: { lat: number; lng: number },
+    viewport: HTMLElement
+  ): { x: number; y: number } | null {
+    const provider = mapProvider as any;
+    if (!provider.map || !provider.container) return null;
+
+    const mapkit = (window as any).mapkit;
+    const mapkitCoord = new mapkit.Coordinate(coord.lat, coord.lng);
+    const pagePoint = provider.map.convertCoordinateToPointOnPage(mapkitCoord);
+
+    // Convert page coordinates to coordinates relative to the viewport
+    const rect = viewport.getBoundingClientRect();
+    return {
+      x: pagePoint.x - rect.left,
+      y: pagePoint.y - rect.top,
+    };
   }
 
   onPointerDown(e: PointerEvent, mapProvider: MapProvider, viewport: HTMLElement): void {
@@ -292,6 +327,15 @@ export class PassThroughHandler implements InteractionHandler {
         this.edgeIndicator.update(e.clientX, e.clientY, true);
       }
 
+      // Update gear indicator at the map anchor position
+      if (this.gearIndicator && this.mapAnchorPos) {
+        const anchorScreen = this.getScreenPointForCoordinate(mapProvider, this.mapAnchorPos, viewport);
+        if (anchorScreen) {
+          const rotation = mapProvider.getRotation();
+          this.gearIndicator.update(e.clientX, e.clientY, anchorScreen.x, anchorScreen.y, true, rotation);
+        }
+      }
+
       // Apply zoom if needed
       if (Math.abs(zoomDelta) > 0.0001) {
         const rect = viewport.getBoundingClientRect();
@@ -384,10 +428,13 @@ export class PassThroughHandler implements InteractionHandler {
       this.visualizer.setVirtualTouchPoint(pointer.lastX, pointer.lastY);
     }
 
-    // Hide edge indicator and clear rotation state when drag ends
+    // Hide edge indicator, gear indicator, and clear rotation state when drag ends
     if (wasSinglePointer && this.pointers.size === 0) {
       if (this.edgeIndicator) {
         this.edgeIndicator.hide();
+      }
+      if (this.gearIndicator) {
+        this.gearIndicator.hide();
       }
       this.currentMapProvider = null;
       this.lastRotationTime = 0;
