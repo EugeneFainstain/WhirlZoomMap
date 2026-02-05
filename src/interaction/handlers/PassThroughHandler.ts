@@ -41,6 +41,9 @@ export class PassThroughHandler implements InteractionHandler {
   private zoomActivated: boolean = false;
   private alt1ZoomActivated: boolean = false;
 
+  // Track drag start time for zoom blocking
+  private dragStartTime: number = 0;
+
   // Alt1 mode: use compound zoom value instead of signed area
   private alt1Mode: boolean = false;
 
@@ -52,6 +55,7 @@ export class PassThroughHandler implements InteractionHandler {
   private draggingFingerX: number = 0;
   private draggingFingerY: number = 0;
   private lastRotationTime: number = 0;
+  private isRotating: boolean = false;
 
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
@@ -65,8 +69,21 @@ export class PassThroughHandler implements InteractionHandler {
           this.applyEdgeRotation(rate);
         },
         () => {
-          // Reset timer when rotation stops so re-entering doesn't cause a jump
+          // Entering edge zone - treat as if drag hasn't started yet
+          this.isRotating = true;
+          this.zoomActivated = false;
+          this.alt1ZoomActivated = false;
+          if (this.visualizer) {
+            this.visualizer.setZoomActivated(false);
+            this.visualizer.setAlt1ZoomActivated(false);
+            this.visualizer.setZoomBlocked(this.isRotating, this.dragStartTime);
+          }
+        },
+        () => {
+          // Leaving edge zone - equivalent to starting a new drag gesture
+          this.isRotating = false;
           this.lastRotationTime = 0;
+          this.dragStartTime = performance.now(); // Start the 0.5 sec timeout
         }
       );
     }
@@ -82,8 +99,8 @@ export class PassThroughHandler implements InteractionHandler {
     // Clamp dt to prevent huge jumps
     const clampedDt = Math.min(dt, 0.1);
 
-    // Rotation speed: 45 degrees per second at full progress
-    const rotationSpeed = 45;
+    // Rotation speed: 90 degrees per second at full progress
+    const rotationSpeed = 90;
     const rotationDelta = rate * rotationSpeed * clampedDt;
     const currentRotation = this.currentMapProvider.getRotation();
     this.currentMapProvider.setRotation(currentRotation + rotationDelta, false);
@@ -164,9 +181,11 @@ export class PassThroughHandler implements InteractionHandler {
     if (this.pointers.size === 1) {
       this.zoomActivated = false; // Reset zoom activation for new drag
       this.alt1ZoomActivated = false; // Reset Alt1 zoom activation for new drag
+      this.dragStartTime = performance.now(); // Start zoom block timer
       if (this.visualizer) {
         this.visualizer.setZoomActivated(false);
         this.visualizer.setAlt1ZoomActivated(false);
+        this.visualizer.setZoomBlocked(this.isRotating, this.dragStartTime);
       }
       const coord = this.getCoordinateAtScreenPoint(mapProvider, e.clientX, e.clientY);
       if (coord) {
@@ -205,9 +224,19 @@ export class PassThroughHandler implements InteractionHandler {
       // Calculate time delta in seconds
       const dt = (now - pointer.lastTime) / 1000;
 
+      // Check if zoom is still blocked (in edge zone OR within guard-rail timeout)
+      const timeSinceDragStart = now - this.dragStartTime;
+      const zoomBlockDuration = this.visualizer?.getZoomBlockDuration() ?? 500;
+      const isZoomBlocked = this.isRotating || timeSinceDragStart < zoomBlockDuration;
+
+      // Update visualizer's blocked state
+      if (this.visualizer) {
+        this.visualizer.setZoomBlocked(this.isRotating, this.dragStartTime);
+      }
+
       // Get signed area and calculate zoom rate
       let zoomDelta = 0;
-      if (this.visualizer && dt > 0) {
+      if (this.visualizer && dt > 0 && !isZoomBlocked) {
         if (this.alt1Mode) {
           // Alt1 mode: use compound zoom value with thresholding
           const compoundValue = this.visualizer.getCompoundZoomValue();

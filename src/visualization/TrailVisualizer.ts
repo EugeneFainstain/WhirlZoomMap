@@ -23,6 +23,7 @@ export class TrailVisualizer {
   private readonly alt1Threshold       : number = 500;  // Alt1 threshold for zoom activation
   private readonly fullCirclesMult     : number = 2.0;  // Multiplier for the fullCircles result
   private readonly zoomRateCoeff       : number = 20;   // Adjust this for zoom sensitivity
+  private readonly zoomBlockDuration   : number = 250;  // Guard-rail timeout in milliseconds
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -34,6 +35,10 @@ export class TrailVisualizer {
   private zoomActivated: boolean = false;
   private alt1ZoomActivated: boolean = false;
   private zoomGetter: (() => number) | null = null;
+
+  // Zoom block state - computed dynamically based on rotation and time
+  private isRotating: boolean = false;
+  private dragStartTime: number = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -82,8 +87,13 @@ export class TrailVisualizer {
   addPoint(x: number, y: number): void {
     const now = performance.now();
 
-    // Remove old points to keep trail bounded (even when not visualizing)
-    this.trail = this.trail.filter(point => now - point.timestamp <= this.trailDuration);
+    // During zoom block period, don't accumulate trail - only keep current point
+    if (this.isZoomBlocked()) {
+      this.trail = [];
+    } else {
+      // Remove old points to keep trail bounded (even when not visualizing)
+      this.trail = this.trail.filter(point => now - point.timestamp <= this.trailDuration);
+    }
 
     this.trail.push({ x, y, timestamp: now });
 
@@ -239,6 +249,19 @@ export class TrailVisualizer {
     this.alt1ZoomActivated = activated;
   }
 
+  setZoomBlocked(isRotating: boolean, dragStartTime: number): void {
+    this.isRotating = isRotating;
+    this.dragStartTime = dragStartTime;
+  }
+
+  getZoomBlockDuration(): number {
+    return this.zoomBlockDuration;
+  }
+
+  private isZoomBlocked(): boolean {
+    return this.isRotating || (performance.now() - this.dragStartTime < this.zoomBlockDuration);
+  }
+
   setZoomGetter(getter: () => number): void {
     this.zoomGetter = getter;
   }
@@ -362,10 +385,15 @@ export class TrailVisualizer {
       // Draw green threshold circle (only visible before zoom activation)
       if (!this.zoomActivated) {
         const thresholdRadius = Math.sqrt(this.areaThreshold) * 0.5;
-        this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
-        this.ctx.lineWidth = 3;
         this.ctx.beginPath();
         this.ctx.arc(leftCircleX, circleY, thresholdRadius, 0, Math.PI * 2);
+        if (this.isZoomBlocked()) {
+          // Filled circle during zoom block period
+          this.ctx.fillStyle = 'rgba(0, 180, 0, 0.4)';
+          this.ctx.fill();
+        }
+        this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
+        this.ctx.lineWidth = 3;
         this.ctx.stroke();
       }
 
@@ -395,10 +423,15 @@ export class TrailVisualizer {
       // Draw green threshold circle for Alt1 (only visible before Alt1 zoom activation)
       if (!this.alt1ZoomActivated) {
         const thresholdRadius = Math.sqrt(this.alt1Threshold) * 0.5;
-        this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
-        this.ctx.lineWidth = 3;
         this.ctx.beginPath();
         this.ctx.arc(rightCircleX, circleY, thresholdRadius, 0, Math.PI * 2);
+        if (this.isZoomBlocked()) {
+          // Filled circle during zoom block period
+          this.ctx.fillStyle = 'rgba(0, 180, 0, 0.4)';
+          this.ctx.fill();
+        }
+        this.ctx.strokeStyle = 'rgba(0, 180, 0, 0.8)';
+        this.ctx.lineWidth = 3;
         this.ctx.stroke();
       }
 
@@ -447,6 +480,10 @@ export class TrailVisualizer {
     this.trail = [];
     this.dragPoint = null;
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  clearTrail(): void {
+    this.trail = [];
   }
 
   destroy(): void {

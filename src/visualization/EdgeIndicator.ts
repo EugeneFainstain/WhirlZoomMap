@@ -23,6 +23,7 @@ export class EdgeIndicator {
   // Rotation animation state
   private rotationAnimationId: number | null = null;
   private rotationCallback: ((rate: number) => void) | null = null;
+  private rotationStartCallback: (() => void) | null = null;
   private rotationStopCallback: (() => void) | null = null;
 
   constructor(container: HTMLElement) {
@@ -50,8 +51,9 @@ export class EdgeIndicator {
   /**
    * Set a callback that will be called continuously while rotation is active
    */
-  setRotationCallback(callback: (rate: number) => void, onStop?: () => void): void {
+  setRotationCallback(callback: (rate: number) => void, onStart?: () => void, onStop?: () => void): void {
     this.rotationCallback = callback;
+    this.rotationStartCallback = onStart ?? null;
     this.rotationStopCallback = onStop ?? null;
   }
 
@@ -172,6 +174,11 @@ export class EdgeIndicator {
   }
 
   private startRotationLoop(): void {
+    // Call the start callback when rotation begins
+    if (this.rotationStartCallback) {
+      this.rotationStartCallback();
+    }
+
     const animate = () => {
       if (this.currentRotationRate !== 0 && this.rotationCallback) {
         this.rotationCallback(this.currentRotationRate);
