@@ -480,7 +480,7 @@ export class PassThroughHandler implements InteractionHandler {
           if (anchorScreen) {
             // Check if gear is within 1/16th of screen width from any edge
             const rect = viewport.getBoundingClientRect();
-            const edgeThreshold = rect.width / 16;
+            const edgeThreshold = rect.width / 10.0;
             const distanceFromLeft = anchorScreen.x;
             const distanceFromRight = rect.width - anchorScreen.x;
             // Only consider left/right edges for gear rotation (not top/bottom)

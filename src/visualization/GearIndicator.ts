@@ -1,10 +1,9 @@
 /**
- * GearIndicator - Shows a gear icon at the map anchor position
- * when the finger approaches the screen edges during single-finger drag.
+ * GearIndicator - Shows a green gear icon at the map anchor position
+ * when the finger enters the rotation zone (within 1/16th of screen width
+ * from the left or right edge) during single-finger drag.
  *
- * The gear fades in as the finger gets closer to any edge:
- * - Starts fading in at 1/8th of screen width from the edge
- * - Fully visible at 1/16th of screen width from the edge
+ * The gear appears instantly at full opacity and rotates with the map.
  */
 export class GearIndicator {
   private container: HTMLElement;
@@ -32,7 +31,7 @@ export class GearIndicator {
     this.gearElement.style.zIndex = '999';
     this.gearElement.style.opacity = '0';
     this.gearElement.style.transform = 'translate(-50%, -50%)';
-    this.gearElement.style.transition = 'opacity 0.1s ease-out';
+    // No transition - gear appears/disappears instantly
 
     this.container.appendChild(this.gearElement);
 
@@ -64,9 +63,8 @@ export class GearIndicator {
 
     const rect = this.container.getBoundingClientRect();
 
-    // Calculate thresholds based on screen width
-    const startThreshold = rect.width / 8;  // Start fading in at 1/8 from edge
-    const endThreshold = rect.width / 16;   // Fully visible at 1/16 from edge
+    // Rotation zone threshold - gear appears when finger is within 1/16th of screen width from edge
+    const rotationThreshold = rect.width / 10.0;
 
     // Distance from left/right edges only (gear rotation only works on horizontal edges)
     const distanceFromRight = rect.right - fingerX;
@@ -75,14 +73,8 @@ export class GearIndicator {
     // Find the minimum distance to left or right edge
     const minDistance = Math.min(distanceFromRight, distanceFromLeft);
 
-    // Calculate opacity based on proximity to edge
-    // 0 opacity when distance >= startThreshold
-    // 1 opacity when distance <= endThreshold
-    let opacity = 0;
-    if (minDistance <= startThreshold) {
-      opacity = 1 - (minDistance - endThreshold) / (startThreshold - endThreshold);
-      opacity = Math.max(0, Math.min(1, opacity));
-    }
+    // Gear appears at full opacity only when in rotation zone (no fade-in)
+    const opacity = minDistance <= rotationThreshold ? 1 : 0;
 
     // Update gear position (anchor position relative to container)
     this.gearElement.style.left = `${anchorScreenX}px`;
@@ -95,13 +87,14 @@ export class GearIndicator {
     this.gearElement.style.opacity = String(opacity);
     this.isVisible = opacity > 0;
 
-    // Update color based on whether we're in the rotation zone
-    const inRotationZone = minDistance <= endThreshold;
-    if (inRotationZone !== this.isInRotationZone) {
-      this.isInRotationZone = inRotationZone;
+    // Gear is always green when visible (since it only appears in rotation zone)
+    if (!this.isInRotationZone && opacity > 0) {
+      this.isInRotationZone = true;
       if (this.gearFillGroup) {
-        this.gearFillGroup.setAttribute('fill', inRotationZone ? '#22c55e' : '#333333');
+        this.gearFillGroup.setAttribute('fill', '#22c55e');
       }
+    } else if (this.isInRotationZone && opacity === 0) {
+      this.isInRotationZone = false;
     }
   }
 
