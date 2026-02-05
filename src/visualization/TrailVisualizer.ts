@@ -96,13 +96,27 @@ export class TrailVisualizer {
     }
 
     this.trail.push({ x, y, timestamp: now });
-
-    // Update drag point to current position
-    this.dragPoint = { x, y };
+    // Note: dragPoint is now updated separately via updateDragPoint() for low-latency rendering
   }
 
   clearDragPoint(): void {
     this.dragPoint = null;
+  }
+
+  /**
+   * Update the drag point position without adding to the trail.
+   * Used for low-latency rendering via requestAnimationFrame.
+   */
+  updateDragPoint(x: number, y: number): void {
+    this.dragPoint = { x, y };
+  }
+
+  /**
+   * Force an immediate render of the canvas.
+   * Used by external animation loops to ensure draw happens after dragPoint update.
+   */
+  render(): void {
+    this.draw();
   }
 
   setVirtualTouchPoint(x: number, y: number): void {

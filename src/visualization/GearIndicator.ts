@@ -9,7 +9,9 @@
 export class GearIndicator {
   private container: HTMLElement;
   private gearElement: HTMLElement;
+  private gearFillGroup: SVGGElement | null = null;
   private isVisible: boolean = false;
+  private isInRotationZone: boolean = false;
 
   // Gear SVG markup (embedded for performance)
   private static readonly GEAR_SVG = `<svg width="144" height="144" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
@@ -33,6 +35,9 @@ export class GearIndicator {
     this.gearElement.style.transition = 'opacity 0.1s ease-out';
 
     this.container.appendChild(this.gearElement);
+
+    // Get reference to the SVG fill group for color changes
+    this.gearFillGroup = this.gearElement.querySelector('g');
   }
 
   /**
@@ -63,19 +68,12 @@ export class GearIndicator {
     const startThreshold = rect.width / 8;  // Start fading in at 1/8 from edge
     const endThreshold = rect.width / 16;   // Fully visible at 1/16 from edge
 
-    // Distance from each edge (relative to container)
+    // Distance from left/right edges only (gear rotation only works on horizontal edges)
     const distanceFromRight = rect.right - fingerX;
     const distanceFromLeft = fingerX - rect.left;
-    const distanceFromTop = fingerY - rect.top;
-    const distanceFromBottom = rect.bottom - fingerY;
 
-    // Find the minimum distance to any edge
-    const minDistance = Math.min(
-      distanceFromRight,
-      distanceFromLeft,
-      distanceFromTop,
-      distanceFromBottom
-    );
+    // Find the minimum distance to left or right edge
+    const minDistance = Math.min(distanceFromRight, distanceFromLeft);
 
     // Calculate opacity based on proximity to edge
     // 0 opacity when distance >= startThreshold
@@ -96,6 +94,15 @@ export class GearIndicator {
     // Update opacity
     this.gearElement.style.opacity = String(opacity);
     this.isVisible = opacity > 0;
+
+    // Update color based on whether we're in the rotation zone
+    const inRotationZone = minDistance <= endThreshold;
+    if (inRotationZone !== this.isInRotationZone) {
+      this.isInRotationZone = inRotationZone;
+      if (this.gearFillGroup) {
+        this.gearFillGroup.setAttribute('fill', inRotationZone ? '#22c55e' : '#333333');
+      }
+    }
   }
 
   /**
