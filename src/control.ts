@@ -59,14 +59,6 @@ export const INERTIA_MIN_VELOCITY = 0.5;                     // Stop when veloci
 export const INERTIA_SAMPLE_WINDOW_MS = 100;                 // Only use samples within this time window
 
 // ============================================================================
-// INPUT_PREDICTION - Reduces perceived input lag
-// ============================================================================
-
-export const INPUT_PREDICTION_MS = 0;                        // Prediction lookahead (0 = disabled)
-export const FINGER_VELOCITY_SMOOTHING = 0.5;                // Exponential smoothing alpha for velocity
-export const FINGER_MAX_DT = 0.1;                            // Ignore huge gaps in finger update timing
-
-// ============================================================================
 // ZOOM - Thresholds, blocking, clamping
 // ============================================================================
 

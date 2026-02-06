@@ -40,7 +40,6 @@ Centralized constants file containing all tunable parameters. Organized by funct
 | **EDGE_INDICATOR** | `EDGE_BAR_*`, `EDGE_*_THRESHOLD_RATIO` | Edge bar styling and trigger zones |
 | **GEAR_INDICATOR** | `GEAR_*`, `ROTATION_EDGE_THRESHOLD_RATIO` | Gear icon styling and position |
 | **INERTIA** | `INERTIA_FRICTION`, `INERTIA_MIN_VELOCITY`, etc. | Pan momentum physics |
-| **INPUT_PREDICTION** | `INPUT_PREDICTION_*` | Touch input smoothing |
 | **ZOOM** | `ZOOM_*` | Zoom thresholds and limits |
 | **VISUALIZATION** | `TRAIL_*`, `SPIRAL_*`, `ZOOM_AREA_*` | Trail and area circle rendering |
 | **MAP_DEFAULTS** | `MAP_DEFAULT_CENTER`, `MAP_DEFAULT_ZOOM`, etc. | Initial map state |

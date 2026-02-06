@@ -13,9 +13,6 @@ import {
   INERTIA_FRICTION,
   INERTIA_MIN_VELOCITY,
   INERTIA_SAMPLE_WINDOW_MS,
-  INPUT_PREDICTION_MS,
-  FINGER_VELOCITY_SMOOTHING,
-  FINGER_MAX_DT,
   ZOOM_WHEEL_SENSITIVITY,
   ZOOM_BLOCK_DURATION_MS,
   ZOOM_AREA_THRESHOLD,
@@ -92,11 +89,6 @@ export class PassThroughHandler implements InteractionHandler {
   private latestFingerY: number = 0;
   private isDraggingSingleFinger: boolean = false;
 
-  // State for input prediction (extrapolate finger position to reduce perceived lag)
-  private fingerVelocityX: number = 0;
-  private fingerVelocityY: number = 0;
-  private lastFingerUpdateTime: number = 0;
-
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
   }
@@ -146,19 +138,17 @@ export class PassThroughHandler implements InteractionHandler {
         return;
       }
 
-      // Calculate predicted finger position based on velocity
-      // This compensates for input lag by extrapolating where the finger will be
-      const predictedX = this.latestFingerX + this.fingerVelocityX * (INPUT_PREDICTION_MS / 1000);
-      const predictedY = this.latestFingerY + this.fingerVelocityY * (INPUT_PREDICTION_MS / 1000);
+      // Use the latest finger position directly
+      const fingerX = this.latestFingerX;
+      const fingerY = this.latestFingerY;
 
-      // Handle gear rotation using predicted coordinates
-      // Rotation is applied here (not in onPointerMove) so it uses predicted position
+      // Handle gear rotation
       if (this.gearRotationActive && this.mapAnchorPos && this.currentMapProvider && this.viewport) {
         // On first frame of rotation, just initialize lastGearRotationY
         if (this.lastGearRotationY === 0) {
-          this.lastGearRotationY = predictedY;
+          this.lastGearRotationY = fingerY;
         } else {
-          const deltaY = predictedY - this.lastGearRotationY;
+          const deltaY = fingerY - this.lastGearRotationY;
           // Rolling without slippage: angle = distance / radius (in radians)
           // Convert to degrees: angle_deg = (deltaY / rollingRadius) * (180 / π)
           const gearRadius = GEAR_SIZE_PX / 2;
@@ -177,30 +167,29 @@ export class PassThroughHandler implements InteractionHandler {
             this.currentMapProvider.setRotation(rotation + rotationDelta, false);
           }
 
-          this.lastGearRotationY = predictedY;
+          this.lastGearRotationY = fingerY;
         }
       }
 
       // Clamp X coordinate so the drag point stays within the gear margin from edges
       const rect = this.viewport?.getBoundingClientRect();
-      let clampedX = predictedX;
+      let clampedX = fingerX;
       if (rect) {
         const gearRadius = GEAR_SIZE_PX / 2;
         const rollingRadius = GEAR_MARGIN_RATIO * gearRadius;
         const minX = rect.left + rollingRadius;
         const maxX = rect.right - rollingRadius;
-        clampedX = Math.max(minX, Math.min(maxX, predictedX));
+        clampedX = Math.max(minX, Math.min(maxX, fingerX));
       }
 
-      // Position the map anchor at the clamped position to reduce map lag
-      // This now applies to both panning and rotation
+      // Position the map anchor at the clamped position
       if (this.mapAnchorPos && this.currentMapProvider) {
-        this.positionCoordinateAtScreenPoint(this.currentMapProvider, this.mapAnchorPos, clampedX, predictedY);
+        this.positionCoordinateAtScreenPoint(this.currentMapProvider, this.mapAnchorPos, clampedX, fingerY);
       }
 
       // Use clamped position for all visuals (gear, drag indicator)
       const visualX = clampedX;
-      const visualY = predictedY;
+      const visualY = fingerY;
 
       // Gear uses viewport-relative coords (for CSS positioning)
       // Visualizer uses client coords (for canvas drawing)
@@ -379,9 +368,6 @@ export class PassThroughHandler implements InteractionHandler {
       // Start decoupled visualization loop for low-latency rendering
       this.latestFingerX = e.clientX;
       this.latestFingerY = e.clientY;
-      this.fingerVelocityX = 0;
-      this.fingerVelocityY = 0;
-      this.lastFingerUpdateTime = 0;
       this.isDraggingSingleFinger = true;
       this.startVisualizationLoop();
     }
@@ -473,20 +459,7 @@ export class PassThroughHandler implements InteractionHandler {
       this.draggingFingerX = e.clientX;
       this.draggingFingerY = e.clientY;
 
-      // Update latest finger position and velocity for decoupled visualization loop
-      const fingerUpdateTime = performance.now();
-      if (this.lastFingerUpdateTime > 0) {
-        const fingerDt = (fingerUpdateTime - this.lastFingerUpdateTime) / 1000;
-        if (fingerDt > 0 && fingerDt < FINGER_MAX_DT) { // Ignore huge gaps
-          // Exponential smoothing for velocity
-          const alpha = FINGER_VELOCITY_SMOOTHING;
-          const newVx = (e.clientX - this.latestFingerX) / fingerDt;
-          const newVy = (e.clientY - this.latestFingerY) / fingerDt;
-          this.fingerVelocityX = alpha * newVx + (1 - alpha) * this.fingerVelocityX;
-          this.fingerVelocityY = alpha * newVy + (1 - alpha) * this.fingerVelocityY;
-        }
-      }
-      this.lastFingerUpdateTime = fingerUpdateTime;
+      // Update latest finger position for decoupled visualization loop
       this.latestFingerX = e.clientX;
       this.latestFingerY = e.clientY;
 
@@ -548,8 +521,8 @@ export class PassThroughHandler implements InteractionHandler {
         mapProvider.zoomAtPoint(x, y, zoomDelta);
       }
 
-      // Map positioning is now handled in the visualization loop with prediction
-      // for lower latency. Gear indicator is also updated there.
+      // Map positioning is handled in the visualization loop for lower latency.
+      // Gear indicator is also updated there.
 
       // Track velocity for inertia
       if (dt > 0) {
