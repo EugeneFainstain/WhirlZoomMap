@@ -7,7 +7,8 @@ import {
   ROTATION_MODE,
   ROTATION_SPEED_DEG_PER_SEC,
   ROTATION_MAX_DT,
-  ROTATION_EDGE_THRESHOLD_RATIO,
+  GEAR_SIZE_PX,
+  GEAR_MARGIN_RATIO,
   INERTIA_MAX_VELOCITY_SAMPLES,
   INERTIA_FRICTION,
   INERTIA_MIN_VELOCITY,
@@ -153,14 +154,16 @@ export class PassThroughHandler implements InteractionHandler {
       // Handle gear rotation using predicted coordinates
       // Rotation is applied here (not in onPointerMove) so it uses predicted position
       if (this.gearRotationActive && this.mapAnchorPos && this.currentMapProvider && this.viewport) {
-        const rect = this.viewport.getBoundingClientRect();
-
         // On first frame of rotation, just initialize lastGearRotationY
         if (this.lastGearRotationY === 0) {
           this.lastGearRotationY = predictedY;
         } else {
           const deltaY = predictedY - this.lastGearRotationY;
-          const rotationRate = (deltaY / rect.height) * 360;
+          // Rolling without slippage: angle = distance / radius (in radians)
+          // Convert to degrees: angle_deg = (deltaY / rollingRadius) * (180 / π)
+          const gearRadius = GEAR_SIZE_PX / 2;
+          const rollingRadius = GEAR_MARGIN_RATIO * gearRadius;
+          const rotationRate = (deltaY / rollingRadius) * (180 / Math.PI);
 
           let rotationDelta = rotationRate;
           if (this.gearNearLeftEdge) {
@@ -178,19 +181,29 @@ export class PassThroughHandler implements InteractionHandler {
         }
       }
 
-      // Position the map anchor at the PREDICTED position to reduce map lag
-      // This now applies to both panning and rotation
-      if (this.mapAnchorPos && this.currentMapProvider) {
-        this.positionCoordinateAtScreenPoint(this.currentMapProvider, this.mapAnchorPos, predictedX, predictedY);
+      // Clamp X coordinate so the drag point stays within the gear margin from edges
+      const rect = this.viewport?.getBoundingClientRect();
+      let clampedX = predictedX;
+      if (rect) {
+        const gearRadius = GEAR_SIZE_PX / 2;
+        const rollingRadius = GEAR_MARGIN_RATIO * gearRadius;
+        const minX = rect.left + rollingRadius;
+        const maxX = rect.right - rollingRadius;
+        clampedX = Math.max(minX, Math.min(maxX, predictedX));
       }
 
-      // Use predicted position for all visuals (gear, drag indicator)
-      const visualX = predictedX;
+      // Position the map anchor at the clamped position to reduce map lag
+      // This now applies to both panning and rotation
+      if (this.mapAnchorPos && this.currentMapProvider) {
+        this.positionCoordinateAtScreenPoint(this.currentMapProvider, this.mapAnchorPos, clampedX, predictedY);
+      }
+
+      // Use clamped position for all visuals (gear, drag indicator)
+      const visualX = clampedX;
       const visualY = predictedY;
 
       // Gear uses viewport-relative coords (for CSS positioning)
       // Visualizer uses client coords (for canvas drawing)
-      const rect = this.viewport?.getBoundingClientRect();
       if (rect) {
         const viewportX = visualX - rect.left;
         const viewportY = visualY - rect.top;
@@ -483,51 +496,47 @@ export class PassThroughHandler implements InteractionHandler {
           this.edgeIndicator.update(e.clientX, e.clientY, true);
         }
       } else {
-        // Gear mode: handle rotation via vertical drag when gear is near edge
-        // (gear visual update happens after anchor repositioning below)
-        if (this.mapAnchorPos) {
-          const anchorScreen = this.getScreenPointForCoordinate(mapProvider, this.mapAnchorPos, viewport);
-          if (anchorScreen) {
-            // Check if gear is within threshold of screen width from any edge
-            const rect = viewport.getBoundingClientRect();
-            const edgeThreshold = rect.width / ROTATION_EDGE_THRESHOLD_RATIO;
-            const distanceFromLeft = anchorScreen.x;
-            const distanceFromRight = rect.width - anchorScreen.x;
-            // Only consider left/right edges for gear rotation (not top/bottom)
-            const minHorizontalDistance = Math.min(distanceFromLeft, distanceFromRight);
+        // Gear mode: handle rotation via vertical drag when finger is near edge
+        const rect = viewport.getBoundingClientRect();
+        const gearRadius = GEAR_SIZE_PX / 2;
+        const edgeThreshold = GEAR_MARGIN_RATIO * gearRadius;
 
-            const wasGearRotationActive = this.gearRotationActive;
-            this.gearRotationActive = minHorizontalDistance <= edgeThreshold;
+        // Use finger position for edge detection
+        const fingerDistanceFromLeft = e.clientX - rect.left;
+        const fingerDistanceFromRight = rect.right - e.clientX;
+        const minFingerDistance = Math.min(fingerDistanceFromLeft, fingerDistanceFromRight);
 
-            // Handle entering gear rotation zone - reset zoom state and rotation tracking
-            if (this.gearRotationActive && !wasGearRotationActive) {
-              this.zoomActivated = false;
-              this.alt1ZoomActivated = false;
-              this.lastGearRotationY = 0; // Reset so visualization loop initializes it
-              if (this.visualizer) {
-                this.visualizer.setZoomActivated(false);
-                this.visualizer.setAlt1ZoomActivated(false);
-                this.visualizer.setZoomBlocked(true, this.dragStartTime);
-              }
-            }
+        const wasGearRotationActive = this.gearRotationActive;
+        // Activate rotation if finger is near edge (or past it)
+        this.gearRotationActive = minFingerDistance <= edgeThreshold;
 
-            // Handle leaving gear rotation zone - start fresh zoom timeout
-            if (!this.gearRotationActive && wasGearRotationActive) {
-              this.dragStartTime = performance.now();
-              this.lastGearRotationY = 0; // Clean up
-            }
-
-            if (this.gearRotationActive) {
-              // Track which edge the gear is near (rotation is applied in visualization loop)
-              this.gearNearLeftEdge = distanceFromLeft <= edgeThreshold;
-              this.gearNearRightEdge = distanceFromRight <= edgeThreshold;
-
-              // Block zoom while gear rotation is active
-              this.isRotating = true;
-            } else {
-              this.isRotating = false;
-            }
+        // Handle entering gear rotation zone - reset zoom state and rotation tracking
+        if (this.gearRotationActive && !wasGearRotationActive) {
+          this.zoomActivated = false;
+          this.alt1ZoomActivated = false;
+          this.lastGearRotationY = 0; // Reset so visualization loop initializes it
+          if (this.visualizer) {
+            this.visualizer.setZoomActivated(false);
+            this.visualizer.setAlt1ZoomActivated(false);
+            this.visualizer.setZoomBlocked(true, this.dragStartTime);
           }
+        }
+
+        // Handle leaving gear rotation zone - start fresh zoom timeout
+        if (!this.gearRotationActive && wasGearRotationActive) {
+          this.dragStartTime = performance.now();
+          this.lastGearRotationY = 0; // Clean up
+        }
+
+        if (this.gearRotationActive) {
+          // Track which edge the finger is near (rotation is applied in visualization loop)
+          this.gearNearLeftEdge = fingerDistanceFromLeft <= edgeThreshold;
+          this.gearNearRightEdge = fingerDistanceFromRight <= edgeThreshold;
+
+          // Block zoom while gear rotation is active
+          this.isRotating = true;
+        } else {
+          this.isRotating = false;
         }
       }
 

@@ -30,8 +30,8 @@ export const EDGE_BAR_GAP_PX = 8;                            // Gap between top 
 export const EDGE_BAR_WIDTH_DIVISOR = 64;                    // Bar width = max(2, rect.width / this)
 export const EDGE_BAR_Z_INDEX = 1000;                        // z-index for edge bars
 export const EDGE_BAR_OPACITY = 0.8;                         // Bar opacity
-export const EDGE_BAR_COLOR_RED = '#ff4444';                 // Red bar color
-export const EDGE_BAR_COLOR_BLUE = '#4444ff';                // Blue bar color
+export const EDGE_BAR_COLOR_RED = '#ff4444';               // Red bar color
+export const EDGE_BAR_COLOR_BLUE = '#4444ff';              // Blue bar color
 
 export const EDGE_START_THRESHOLD_RATIO = 8;                 // Bars start sliding in at (rect.width / this) from edge
 export const EDGE_END_THRESHOLD_RATIO = 16;                  // Bars fully visible at (rect.width / this) from edge
@@ -42,9 +42,12 @@ export const EDGE_ROTATION_THRESHOLD_RATIO = 16;             // Full rotation sp
 // ============================================================================
 
 export const GEAR_SIZE_PX = 144;                             // Gear SVG width/height
+export const GEAR_MARGIN_RATIO = 0.51;                       // Margin from edge as ratio of gear radius
+export const GEAR_CENTER_OFFSET_X = 0;                       // X offset to correct gear center (in pixels, positive = shift right)
+export const GEAR_CENTER_OFFSET_Y = 2;                       // Y offset to correct gear center (in pixels, positive = shift down)
 export const GEAR_Z_INDEX = 999;                             // z-index for gear element
-export const GEAR_COLOR_DEFAULT = '#333333';                 // Gear color when not in rotation zone
-export const GEAR_COLOR_ROTATION = '#22c55e';                // Gear color when in rotation zone (green)
+export const GEAR_COLOR_DEFAULT = '#333333';               // Gear color when not in rotation zone
+export const GEAR_COLOR_ROTATION = '#22c55e';              // Gear color when in rotation zone (green)
 
 // ============================================================================
 // INERTIA - Friction, velocity, sampling
