@@ -36,10 +36,8 @@ export class MapControls {
   private goToMyLocation(): void {
     // Stop any ongoing inertia animation
     this.handler?.stopInertia();
-    // Reset rotation to north
-    this.mapProvider.setRotation(0, false);
-    // Center on user location
-    this.mapProvider.centerOnUserLocation(LOCATION_BUTTON_ZOOM).catch(() => {
+    // Animate center, zoom, and rotation to north together
+    this.mapProvider.centerOnUserLocation(LOCATION_BUTTON_ZOOM, 0).catch(() => {
       console.warn('Geolocation permission denied or unavailable.');
     });
   }

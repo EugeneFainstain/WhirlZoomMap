@@ -29,6 +29,7 @@ const MAPKIT_LAT_CLAMP_MAX = 85;         // Web Mercator latitude maximum
 const EARTH_RADIUS_METERS = 6371000;     // Earth's radius for haversine
 const ZOOM_CLAMPING_EPSILON = 0.001;     // Epsilon for detecting zoom clamping
 const ZOOM_LIMIT_EPSILON = 0.0001;       // Epsilon to stay away from zoom limits
+const ANIMATE_TO_DURATION_MS = 1000;      // Duration for combined center/zoom/rotation animation
 
 declare const mapkit: any;
 
@@ -1165,62 +1166,85 @@ export class AppleMapProvider implements MapProvider {
     }
   }
 
-  async centerOnUserLocation(zoom?: number): Promise<void> {
+  async centerOnUserLocation(zoom?: number, rotation?: number): Promise<void> {
     if (!this.map) return;
 
-    // Use cached location if available for instant response
-    if (this.cachedUserLocation) {
-      const coord = new mapkit.Coordinate(
-        this.cachedUserLocation.lat,
-        this.cachedUserLocation.lng
-      );
-      const zoomLevel = zoom ?? this.getZoom();
-      const span = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, zoomLevel);
+    const location = this.cachedUserLocation ?? await this.getFreshLocation();
+    if (!location || !this.map) return;
+
+    const targetZoom = zoom ?? this.getZoom();
+
+    if (rotation !== undefined) {
+      this.animateTo(location.lat, location.lng, targetZoom, rotation);
+    } else {
+      const span = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, targetZoom);
       const region = new mapkit.CoordinateRegion(
-        coord,
+        new mapkit.Coordinate(location.lat, location.lng),
         new mapkit.CoordinateSpan(span, span)
       );
       this.map.setRegionAnimated(region, true);
-      return;
     }
+  }
 
-    // Fallback to fresh query if no cached location
-    return new Promise((resolve, reject) => {
+  private getFreshLocation(): Promise<LatLng | null> {
+    return new Promise((resolve) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocation not supported'));
+        resolve(null);
         return;
       }
-
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          if (!this.map) {
-            resolve();
-            return;
-          }
           this.cachedUserLocation = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           };
-          const coord = new mapkit.Coordinate(
-            position.coords.latitude,
-            position.coords.longitude
-          );
-          const zoomLevel = zoom ?? this.getZoom();
-          const span = MAPKIT_ZOOM_SPAN_BASE / Math.pow(2, zoomLevel);
-          const region = new mapkit.CoordinateRegion(
-            coord,
-            new mapkit.CoordinateSpan(span, span)
-          );
-          this.map.setRegionAnimated(region, true);
-          resolve();
+          resolve(this.cachedUserLocation);
         },
         (error) => {
           console.warn('Geolocation error:', error.message);
-          reject(error);
+          resolve(null);
         },
         { enableHighAccuracy: false, maximumAge: 0, timeout: GEOLOCATION_FALLBACK_TIMEOUT_MS }
       );
     });
+  }
+
+  private animateTo(lat: number, lng: number, zoom: number, rotation: number): void {
+    if (!this.map) return;
+
+    const startCenter = this.getCenter();
+    const startZoom = this.getZoom();
+    const startRotation = this.getRotation();
+
+    // Shortest path for rotation (e.g. 350° -> 10° should go through 0°)
+    let deltaRotation = rotation - startRotation;
+    if (deltaRotation > 180) deltaRotation -= 360;
+    if (deltaRotation < -180) deltaRotation += 360;
+
+    const startTime = performance.now();
+
+    const step = (now: number) => {
+      if (!this.map) return;
+
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / ANIMATE_TO_DURATION_MS, 1);
+      // Ease-out cubic
+      const ease = 1 - Math.pow(1 - t, 3);
+
+      const curLat = startCenter.lat + (lat - startCenter.lat) * ease;
+      const curLng = startCenter.lng + (lng - startCenter.lng) * ease;
+      const curZoom = startZoom + (zoom - startZoom) * ease;
+      const curRotation = startRotation + deltaRotation * ease;
+
+      this.setCenterAndZoom(curLat, curLng, curZoom, false);
+      this.setRotation(curRotation, false);
+
+      if (t < 1) {
+        requestAnimationFrame(step);
+      }
+    };
+
+    requestAnimationFrame(step);
   }
 
   destroy(): void {

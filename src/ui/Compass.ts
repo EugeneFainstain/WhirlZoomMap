@@ -18,10 +18,11 @@ export class Compass {
       <button id="compass-btn" title="Reset to north">
         <svg width="32" height="32" viewBox="0 0 256 256" fill="none">
           <path stroke="#ff0000" stroke-width="21.362" stroke-linecap="round" d="M 95.203982,127.6524 127.15827,11.529893"/>
-          <path stroke="#ff0000" stroke-width="21.362" stroke-linecap="round" d="M 160.91547,127.70796 127.14936,11.585457"/>
-          <path stroke="#c0c0c0" stroke-width="21.362" stroke-linecap="round" d="M 127.84512,244.13703 160.78768,129.16751"/>
-          <path stroke="#c0c0c0" stroke-width="21.362" stroke-linecap="round" d="M 127.84512,243.80761 95.231994,131.47349"/>
-          <path fill="#ff0000" d="M 84.497651,128.64067 171.63071,127.15826 127.15826,13.506447 Z"/>
+          <path stroke="#ff0000" stroke-width="21.362" stroke-linecap="round" d="M 161.01459,128.7877 127.14936,11.585457"/>
+          <path stroke="#ffffff" stroke-width="21.362" stroke-linecap="round" d="M 127.84512,244.13703 161.0207,129.05104"/>
+          <path stroke="#ffffff" stroke-width="21.362" stroke-linecap="round" d="M 127.84512,243.80761 95.231994,129.20234"/>
+          <path fill="#ff0000" d="M 84.070025,128.39774 172.08246,127.84294 127.04179,1.6265562 Z"/>
+          <path fill="#ffffff" d="M 84.082097,128.16698 172.04416,127.80134 127.51402,254.9273 Z"/>
         </svg>
       </button>
     `;
