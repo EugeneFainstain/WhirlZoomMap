@@ -20,7 +20,6 @@ export const ROTATION_MODE: RotationMode = 'gear';           // 'edge' = auto-ro
 
 export const ROTATION_EDGE_THRESHOLD_RATIO = 10.0;           // Gear appears within (rect.width / this) from edge
 export const ROTATION_SPEED_DEG_PER_SEC = 90;                // Rotation speed at full progress (edge mode)
-export const ROTATION_DELTA_THRESHOLD = 0.01;                // Minimum rotation change to apply
 export const ROTATION_MAX_DT = 0.1;                          // Clamp dt to prevent huge jumps (in seconds)
 
 // ============================================================================
@@ -76,9 +75,6 @@ export const ZOOM_ALT1_THRESHOLD = 500;                      // Threshold for Al
 export const ZOOM_RATE_COEFF = 20;                           // Coefficient for zoom rate calculation
 export const ZOOM_FULL_CIRCLES_MULT = 2.0;                   // Multiplier for fullCircles in compound value
 export const ZOOM_WHEEL_SENSITIVITY = 0.002;                 // Wheel delta multiplier for zoom
-export const ZOOM_MIN_DELTA = 0.0001;                        // Minimum zoom change to apply
-export const ZOOM_CLAMPING_EPSILON = 0.001;                  // Threshold for detecting zoom clamping
-export const ZOOM_LIMIT_EPSILON = 0.0001;                    // Epsilon to avoid zoom limits
 
 export const PAN_THRESHOLD = 0.1;                            // Minimum pan distance to trigger movement
 
@@ -140,16 +136,6 @@ export const GEOLOCATION_WATCH_MAX_AGE_MS = 1000;            // Maximum age for 
 export const GEOLOCATION_WATCH_TIMEOUT_MS = 10000;           // Timeout for location watch
 
 export const LOCATION_BUTTON_ZOOM = 17;                      // Zoom level when centering on user location
-
-// ============================================================================
-// MAPKIT - MapKit JS specific constants
-// ============================================================================
-
-export const MAPKIT_CHECK_INTERVAL_MS = 50;                  // Milliseconds between MapKit availability checks
-export const MAPKIT_ZOOM_SPAN_BASE = 360;                    // Base for zoom span calculation (360 degrees)
-export const MAPKIT_LAT_CLAMP_MIN = -85;                     // Web Mercator latitude minimum
-export const MAPKIT_LAT_CLAMP_MAX = 85;                      // Web Mercator latitude maximum
-export const EARTH_RADIUS_METERS = 6371000;                  // Earth's radius for haversine distance
 
 // ============================================================================
 // ROUTES - Styling, line patterns

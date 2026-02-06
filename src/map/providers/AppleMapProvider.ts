@@ -1,14 +1,8 @@
 import { MapProvider, MapOptions, LatLng, MapBounds, MapMarker, RouteInfo } from '../types';
 import { config } from '../../config';
 import {
-  MAPKIT_CHECK_INTERVAL_MS,
-  MAPKIT_ZOOM_SPAN_BASE,
-  MAPKIT_LAT_CLAMP_MIN,
-  MAPKIT_LAT_CLAMP_MAX,
   ZOOM_MIN_LEVEL,
   ZOOM_MAX_LEVEL,
-  ZOOM_CLAMPING_EPSILON,
-  ZOOM_LIMIT_EPSILON,
   POI_ICON_OFFSET_Y,
   POI_TAP_RADIUS,
   POI_SELECT_DEBOUNCE_MS,
@@ -25,8 +19,16 @@ import {
   ROUTE_TRAVELED_OPACITY,
   ROUTE_WALKING_DASH,
   ROUTE_CYCLING_DASH,
-  EARTH_RADIUS_METERS,
 } from '../../control';
+
+// Non-tunable constants (geometric/physical constants and epsilons)
+const MAPKIT_CHECK_INTERVAL_MS = 50;     // Polling interval for MapKit availability
+const MAPKIT_ZOOM_SPAN_BASE = 360;       // Full rotation in degrees
+const MAPKIT_LAT_CLAMP_MIN = -85;        // Web Mercator latitude minimum
+const MAPKIT_LAT_CLAMP_MAX = 85;         // Web Mercator latitude maximum
+const EARTH_RADIUS_METERS = 6371000;     // Earth's radius for haversine
+const ZOOM_CLAMPING_EPSILON = 0.001;     // Epsilon for detecting zoom clamping
+const ZOOM_LIMIT_EPSILON = 0.0001;       // Epsilon to stay away from zoom limits
 
 declare const mapkit: any;
 

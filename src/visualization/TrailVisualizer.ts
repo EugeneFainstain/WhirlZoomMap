@@ -14,7 +14,6 @@ import {
   ZOOM_AREA_THRESHOLD,
   ZOOM_ALT1_THRESHOLD,
   ZOOM_FULL_CIRCLES_MULT,
-  ZOOM_RATE_COEFF,
   ZOOM_BLOCK_DURATION_MS,
   SPIRAL_BASE_RADIUS,
   SPIRAL_RADIUS_GROWTH,
@@ -268,18 +267,6 @@ export class TrailVisualizer {
     return signedArea * fullCircles * compoundValMult * signOfArea;
   }
 
-  getZoomRateCoeff(): number {
-    return ZOOM_RATE_COEFF;
-  }
-
-  getAreaThreshold(): number {
-    return ZOOM_AREA_THRESHOLD;
-  }
-
-  getAlt1Threshold(): number {
-    return ZOOM_ALT1_THRESHOLD;
-  }
-
   setZoomActivated(activated: boolean): void {
     this.zoomActivated = activated;
   }
@@ -291,10 +278,6 @@ export class TrailVisualizer {
   setZoomBlocked(isRotating: boolean, dragStartTime: number): void {
     this.isRotating = isRotating;
     this.dragStartTime = dragStartTime;
-  }
-
-  getZoomBlockDuration(): number {
-    return ZOOM_BLOCK_DURATION_MS;
   }
 
   private isZoomBlocked(): boolean {

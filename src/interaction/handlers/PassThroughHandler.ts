@@ -6,7 +6,6 @@ import { GearIndicator } from '../../visualization/GearIndicator';
 import {
   ROTATION_MODE,
   ROTATION_SPEED_DEG_PER_SEC,
-  ROTATION_DELTA_THRESHOLD,
   ROTATION_MAX_DT,
   ROTATION_EDGE_THRESHOLD_RATIO,
   INERTIA_MAX_VELOCITY_SAMPLES,
@@ -16,10 +15,17 @@ import {
   INPUT_PREDICTION_MS,
   FINGER_VELOCITY_SMOOTHING,
   FINGER_MAX_DT,
-  ZOOM_MIN_DELTA,
   ZOOM_WHEEL_SENSITIVITY,
+  ZOOM_BLOCK_DURATION_MS,
+  ZOOM_AREA_THRESHOLD,
+  ZOOM_ALT1_THRESHOLD,
+  ZOOM_RATE_COEFF,
   PAN_THRESHOLD,
 } from '../../control';
+
+// Epsilons - not tunable, just small numbers
+const ROTATION_DELTA_THRESHOLD = 0.01;
+const ZOOM_MIN_DELTA = 0.0001;
 
 interface PointerState {
   pointerId: number;
@@ -395,8 +401,7 @@ export class PassThroughHandler implements InteractionHandler {
 
       // Check if zoom is still blocked (in edge zone OR within guard-rail timeout)
       const timeSinceDragStart = now - this.dragStartTime;
-      const zoomBlockDuration = this.visualizer?.getZoomBlockDuration() ?? 500;
-      const isZoomBlocked = this.isRotating || timeSinceDragStart < zoomBlockDuration;
+      const isZoomBlocked = this.isRotating || timeSinceDragStart < ZOOM_BLOCK_DURATION_MS;
 
       // Update visualizer's blocked state
       if (this.visualizer) {
@@ -409,7 +414,7 @@ export class PassThroughHandler implements InteractionHandler {
         if (this.alt1Mode) {
           // Alt1 mode: use compound zoom value with thresholding
           const compoundValue = this.visualizer.getCompoundZoomValue();
-          const threshold = this.visualizer.getAlt1Threshold();
+          const threshold = ZOOM_ALT1_THRESHOLD;
 
           // Check if we should activate Alt1 zoom mode (crossing the threshold)
           if (!this.alt1ZoomActivated && Math.abs(compoundValue) > threshold) {
@@ -423,13 +428,13 @@ export class PassThroughHandler implements InteractionHandler {
             const minViewportDimension = Math.min(rect.width, rect.height);
             const normalizedValue = Math.sqrt(Math.abs(compoundValue)) / minViewportDimension * Math.sign(compoundValue);
 
-            const zoomRate = normalizedValue * this.visualizer.getZoomRateCoeff();
+            const zoomRate = normalizedValue * ZOOM_RATE_COEFF;
             zoomDelta = zoomRate * dt;
           }
         } else {
           // Normal mode: use signed area with threshold
           const signedArea = this.visualizer.getSignedArea();
-          const threshold = this.visualizer.getAreaThreshold();
+          const threshold = ZOOM_AREA_THRESHOLD;
 
           // Check if we should activate zoom mode (crossing the threshold)
           if (!this.zoomActivated && Math.abs(signedArea) > threshold) {
@@ -445,7 +450,7 @@ export class PassThroughHandler implements InteractionHandler {
             const normalizedValue = Math.sqrt(Math.abs(signedArea)) / minViewportDimension * Math.sign(signedArea);
 
             // Convert normalized value to zoom rate
-            const zoomRate = normalizedValue * this.visualizer.getZoomRateCoeff();
+            const zoomRate = normalizedValue * ZOOM_RATE_COEFF;
             zoomDelta = zoomRate * dt;
           }
         }
