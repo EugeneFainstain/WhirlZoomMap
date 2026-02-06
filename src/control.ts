@@ -17,6 +17,7 @@ export const DOUBLE_TAP_THRESHOLD_MS = 300;                  // Max interval bet
 
 export type RotationMode = 'edge' | 'gear';
 export const ROTATION_MODE: RotationMode = 'gear';           // 'edge' = auto-rotation near edges, 'gear' = vertical drag rotation
+export const ROTATION_ENABLED = true;                        // false = disable all rotation (for testing)
 
 export const ROTATION_EDGE_THRESHOLD_RATIO = 10.0;           // Gear appears within (rect.width / this) from edge
 export const ROTATION_SPEED_DEG_PER_SEC = 90;                // Rotation speed at full progress (edge mode)
@@ -48,6 +49,7 @@ export const GEAR_CENTER_OFFSET_Y = 2;                       // Y offset to corr
 export const GEAR_Z_INDEX = 999;                             // z-index for gear element
 export const GEAR_COLOR_DEFAULT = '#333333';               // Gear color when not in rotation zone
 export const GEAR_COLOR_ROTATION = '#22c55e';              // Gear color when in rotation zone (green)
+export const GEAR_SYNC_WITH_MAP = true;                      // true = gear syncs with map position, false = gear follows finger (lower latency)
 
 // ============================================================================
 // INERTIA - Friction, velocity, sampling

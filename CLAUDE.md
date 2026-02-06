@@ -38,7 +38,7 @@ Centralized constants file containing all tunable parameters. Organized by funct
 | **TOUCH_INTERACTION** | `DOUBLE_TAP_THRESHOLD_MS` | Timing for double-tap detection |
 | **ROTATION** | `ROTATION_MODE`, `ROTATION_SPEED_DEG_PER_FRAME` | Rotation behavior and speed |
 | **EDGE_INDICATOR** | `EDGE_BAR_*`, `EDGE_*_THRESHOLD_RATIO` | Edge bar styling and trigger zones |
-| **GEAR_INDICATOR** | `GEAR_*`, `ROTATION_EDGE_THRESHOLD_RATIO` | Gear icon styling and position |
+| **GEAR_INDICATOR** | `GEAR_*`, `ROTATION_EDGE_THRESHOLD_RATIO` | Gear icon styling, position, and map sync |
 | **INERTIA** | `INERTIA_FRICTION`, `INERTIA_MIN_VELOCITY`, etc. | Pan momentum physics |
 | **ZOOM** | `ZOOM_*` | Zoom thresholds and limits |
 | **VISUALIZATION** | `TRAIL_*`, `SPIRAL_*`, `ZOOM_AREA_*` | Trail and area circle rendering |

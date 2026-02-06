@@ -5,10 +5,12 @@ import { EdgeIndicator } from '../../visualization/EdgeIndicator';
 import { GearIndicator } from '../../visualization/GearIndicator';
 import {
   ROTATION_MODE,
+  ROTATION_ENABLED,
   ROTATION_SPEED_DEG_PER_SEC,
   ROTATION_MAX_DT,
   GEAR_SIZE_PX,
   GEAR_MARGIN_RATIO,
+  GEAR_SYNC_WITH_MAP,
   INERTIA_MAX_VELOCITY_SAMPLES,
   INERTIA_FRICTION,
   INERTIA_MIN_VELOCITY,
@@ -89,6 +91,11 @@ export class PassThroughHandler implements InteractionHandler {
   private latestFingerY: number = 0;
   private isDraggingSingleFinger: boolean = false;
 
+  // Previous frame's visual position and rotation (for GEAR_SYNC_WITH_MAP mode)
+  private prevVisualX: number = 0;
+  private prevVisualY: number = 0;
+  private prevRotation: number | null = null;
+
   setVisualizer(visualizer: TrailVisualizer | null): void {
     this.visualizer = visualizer;
   }
@@ -162,7 +169,7 @@ export class PassThroughHandler implements InteractionHandler {
             rotationDelta = -rotationRate; // Right edge: down = CCW
           }
 
-          if (Math.abs(rotationDelta) > ROTATION_DELTA_THRESHOLD) {
+          if (ROTATION_ENABLED && Math.abs(rotationDelta) > ROTATION_DELTA_THRESHOLD) {
             const rotation = this.currentMapProvider.getRotation();
             this.currentMapProvider.setRotation(rotation + rotationDelta, false);
           }
@@ -182,14 +189,25 @@ export class PassThroughHandler implements InteractionHandler {
         clampedX = Math.max(minX, Math.min(maxX, fingerX));
       }
 
-      // Position the map anchor at the clamped position
+      // Use clamped position for all visuals (gear, drag indicator)
+      let visualX = clampedX;
+      let visualY = fingerY;
+
+      // If syncing with map, use the PREVIOUS frame's target position
+      // (map rendering is one frame behind, so gear should match that)
+      if (GEAR_SYNC_WITH_MAP && this.prevVisualX !== 0) {
+        visualX = this.prevVisualX;
+        visualY = this.prevVisualY;
+      }
+
+      // Store current target for next frame
+      this.prevVisualX = clampedX;
+      this.prevVisualY = fingerY;
+
+      // Position the map anchor at the clamped position (visual update happens next frame)
       if (this.mapAnchorPos && this.currentMapProvider) {
         this.positionCoordinateAtScreenPoint(this.currentMapProvider, this.mapAnchorPos, clampedX, fingerY);
       }
-
-      // Use clamped position for all visuals (gear, drag indicator)
-      const visualX = clampedX;
-      const visualY = fingerY;
 
       // Gear uses viewport-relative coords (for CSS positioning)
       // Visualizer uses client coords (for canvas drawing)
@@ -199,8 +217,13 @@ export class PassThroughHandler implements InteractionHandler {
 
         // Update gear indicator with viewport-relative coords
         if (ROTATION_MODE === 'gear' && this.gearIndicator && this.currentMapProvider) {
-          const rotation = this.currentMapProvider.getRotation();
-          this.gearIndicator.update(this.latestFingerX, this.latestFingerY, viewportX, viewportY, true, rotation);
+          const currentRotation = this.currentMapProvider.getRotation();
+          // Use previous frame's rotation when syncing with map (same as position)
+          const gearRotation = (GEAR_SYNC_WITH_MAP && this.prevRotation !== null)
+            ? this.prevRotation
+            : currentRotation;
+          this.prevRotation = currentRotation;
+          this.gearIndicator.update(this.latestFingerX, this.latestFingerY, viewportX, viewportY, true, gearRotation);
         }
       }
 
@@ -228,6 +251,7 @@ export class PassThroughHandler implements InteractionHandler {
 
   private applyEdgeRotation(rate: number): void {
     // Only apply edge rotation in edge mode
+    if (!ROTATION_ENABLED) return;
     if (ROTATION_MODE !== 'edge') return;
     if (!this.currentMapProvider || !this.mapAnchorPos) return;
 
@@ -368,6 +392,9 @@ export class PassThroughHandler implements InteractionHandler {
       // Start decoupled visualization loop for low-latency rendering
       this.latestFingerX = e.clientX;
       this.latestFingerY = e.clientY;
+      this.prevVisualX = 0; // Reset so first frame uses finger position
+      this.prevVisualY = 0;
+      this.prevRotation = null; // Reset so first frame uses current rotation
       this.isDraggingSingleFinger = true;
       this.startVisualizationLoop();
     }
