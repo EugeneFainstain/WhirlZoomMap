@@ -69,7 +69,7 @@ html, body {
 /* Search bar */
 #search-bar-container {
   pointer-events: all;
-  padding: 12px;
+  padding: calc(12px + env(safe-area-inset-top)) 12px 12px 12px;
   display: flex;
   justify-content: center;
 }
@@ -163,8 +163,8 @@ html, body {
 #map-controls-container {
   pointer-events: all;
   position: absolute;
-  bottom: 12px;
-  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  right: calc(12px + env(safe-area-inset-right));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -276,9 +276,9 @@ html, body {
 #place-detail-container {
   display: none;
   position: absolute;
-  bottom: 24px;
-  left: 12px;
-  right: 12px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  left: calc(12px + env(safe-area-inset-left));
+  right: calc(12px + env(safe-area-inset-right));
   max-width: 400px;
   min-height: 180px;
   margin: 0 auto;
@@ -441,4 +441,23 @@ html, body {
 .close-btn svg {
   width: 20px;
   height: 20px;
+}
+
+/* Standalone PWA mode - minimal padding, safe-area-insets handle the notch */
+@media (display-mode: standalone) {
+  #search-bar-container {
+    /* max() ensures minimum 8px on Android where safe-area-inset-top is 0 */
+    padding: max(12px, env(safe-area-inset-top)) 8px 4px 8px;
+  }
+
+  #map-controls-container {
+    bottom: 12px;
+    right: 8px;
+  }
+
+  #place-detail-container {
+    bottom: 12px;
+    left: 8px;
+    right: 8px;
+  }
 }
