@@ -4,6 +4,7 @@ import { InteractionLayer } from './interaction/InteractionLayer';
 import { PassThroughHandler } from './interaction/handlers/PassThroughHandler';
 import { MapControls } from './ui/MapControls';
 import { SearchBar } from './ui/SearchBar';
+import { Compass } from './ui/Compass';
 import { TrailVisualizer } from './visualization/TrailVisualizer';
 import { EdgeIndicator } from './visualization/EdgeIndicator';
 import { GearIndicator } from './visualization/GearIndicator';
@@ -26,6 +27,7 @@ async function main() {
   const interactionElement = document.getElementById('interaction-layer')!;
   const controlsContainer = document.getElementById('map-controls-container')!;
   const searchContainer = document.getElementById('search-bar-container')!;
+  const compassContainer = document.getElementById('compass-container')!;
   const visualizationCanvas = document.getElementById('visualization-canvas') as HTMLCanvasElement;
 
   // Create and initialize the map provider
@@ -64,6 +66,7 @@ async function main() {
   // Set up UI
   const mapControls = new MapControls(controlsContainer, mapProvider, handler);
   const searchBar = new SearchBar(searchContainer, mapProvider);
+  const compass = new Compass(compassContainer, mapProvider);
 
   // Native mode toggle
   const nativeCheckbox = document.getElementById('native-toggle-checkbox') as HTMLInputElement;
@@ -94,6 +97,7 @@ async function main() {
       interactionLayer,
       mapControls,
       searchBar,
+      compass,
       trailVisualizer,
       edgeIndicator,
       gearIndicator,
