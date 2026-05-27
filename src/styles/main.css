@@ -298,6 +298,32 @@ html, body {
   gap: 5px;
 }
 
+/* Travel simulation button (debug) */
+#travel-sim-btn {
+  pointer-events: all;
+  position: absolute;
+  top: 166px;
+  left: 12px;
+  background: white;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+#travel-sim-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#travel-sim-btn.active {
+  background: #007AFF;
+  color: white;
+}
+
 /* Place detail card */
 #place-detail-container {
   display: none;

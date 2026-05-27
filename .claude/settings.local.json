@@ -5,7 +5,7 @@
       "Bash(git -C \"e:\\\\EUGENE_PRIVATE\\\\WebDraw\" remote -v)",
       "Bash(npx tsc:*)",
       "Bash(git checkout:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
       "Bash(npm run build:*)"
     ]
   }

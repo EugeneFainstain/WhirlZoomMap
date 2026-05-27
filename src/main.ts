@@ -90,6 +90,25 @@ async function main() {
     handler.setAlt1Mode(alt1Checkbox.checked);
   });
 
+  // Travel simulation toggle (debug)
+  const travelSimBtn = document.getElementById('travel-sim-btn') as HTMLButtonElement;
+  travelSimBtn.addEventListener('click', () => {
+    if (mapProvider.isTravelSimulationRunning()) {
+      mapProvider.stopTravelSimulation();
+      travelSimBtn.textContent = 'Simulate';
+      travelSimBtn.classList.remove('active');
+    } else {
+      mapProvider.startTravelSimulation();
+      travelSimBtn.textContent = 'Stop';
+      travelSimBtn.classList.add('active');
+    }
+  });
+  setInterval(() => {
+    const provider = mapProvider as any;
+    const hasRoute = provider.hasActiveRoute && provider.routePoints?.length >= 2;
+    travelSimBtn.disabled = !hasRoute && !mapProvider.isTravelSimulationRunning();
+  }, 1000);
+
   // Expose for debugging in dev
   if (import.meta.env.DEV) {
     (window as any).__whirlZoomMap = {

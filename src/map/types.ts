@@ -54,6 +54,9 @@ export interface MapProvider {
   clearRoute(): void;
   getDirections(from: LatLng, to: LatLng): Promise<RouteInfo>;
   centerOnUserLocation(zoom?: number, rotation?: number): Promise<void>;
+  startTravelSimulation(): void;
+  stopTravelSimulation(): void;
+  isTravelSimulationRunning(): boolean;
   destroy(): void;
 }
 

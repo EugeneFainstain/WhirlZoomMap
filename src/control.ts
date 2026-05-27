@@ -149,6 +149,15 @@ export const ROUTE_CYCLING_DASH = [8, 12] as const;          // Dashed pattern f
 // Automobile uses solid line (no dash)
 
 // ============================================================================
+// TRAVEL_SIMULATION - Debug travel simulation along routes
+// ============================================================================
+
+export const TRAVEL_SIM_WALKING_SPEED_MPS = 1.4;              // Walking speed in m/s (~3.1 mph)
+export const TRAVEL_SIM_CYCLING_SPEED_MPS = 5.5;              // Cycling speed in m/s (~12.3 mph)
+export const TRAVEL_SIM_AUTOMOBILE_SPEED_MPS = 13.4;           // Automobile speed in m/s (~30 mph)
+export const TRAVEL_SIM_MAX_DT = 0.1;                          // Max dt per frame in seconds (prevents jumps)
+
+// ============================================================================
 // POI - Detection thresholds
 // ============================================================================
 

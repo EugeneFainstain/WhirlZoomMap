@@ -19,6 +19,10 @@ import {
   ROUTE_TRAVELED_OPACITY,
   ROUTE_WALKING_DASH,
   ROUTE_CYCLING_DASH,
+  TRAVEL_SIM_WALKING_SPEED_MPS,
+  TRAVEL_SIM_CYCLING_SPEED_MPS,
+  TRAVEL_SIM_AUTOMOBILE_SPEED_MPS,
+  TRAVEL_SIM_MAX_DT,
 } from '../../control';
 
 // Non-tunable constants (geometric/physical constants and epsilons)
@@ -51,6 +55,11 @@ export class AppleMapProvider implements MapProvider {
   private hasActiveRoute = false;
   private cachedUserLocation: LatLng | null = null;
   private locationWatchId: number | null = null;
+  private simAnimationId: number | null = null;
+  private simCurrentIndex: number = 0;
+  private simSegmentProgress: number = 0;
+  private simLastFrameTime: number = 0;
+  private simRunning: boolean = false;
 
   async init(container: HTMLElement, options: MapOptions): Promise<void> {
     this.container = container;
@@ -884,6 +893,8 @@ export class AppleMapProvider implements MapProvider {
     // Store route data for progress tracking
     this.routePoints = points;
     this.currentTransport = transport;
+    this.simCurrentIndex = 0;
+    this.simSegmentProgress = 0;
 
     // Convert LatLng array to MapKit coordinates
     const coordinates = points.map(
@@ -916,6 +927,9 @@ export class AppleMapProvider implements MapProvider {
 
   clearRoute(): void {
     if (!this.map) return;
+    this.stopTravelSimulation();
+    this.simCurrentIndex = 0;
+    this.simSegmentProgress = 0;
     if (this.routeOverlay) {
       this.map.removeOverlay(this.routeOverlay);
       this.routeOverlay = null;
@@ -1245,6 +1259,96 @@ export class AppleMapProvider implements MapProvider {
     };
 
     requestAnimationFrame(step);
+  }
+
+  startTravelSimulation(): void {
+    if (!this.hasActiveRoute || !this.routePoints || this.routePoints.length < 2) return;
+    if (this.simRunning) return;
+
+    this.simRunning = true;
+    this.simLastFrameTime = performance.now();
+    this.simAnimationId = requestAnimationFrame((t) => this.simStep(t));
+  }
+
+  stopTravelSimulation(): void {
+    this.simRunning = false;
+    if (this.simAnimationId !== null) {
+      cancelAnimationFrame(this.simAnimationId);
+      this.simAnimationId = null;
+    }
+    const btn = document.getElementById('travel-sim-btn');
+    if (btn) {
+      btn.textContent = 'Simulate';
+      btn.classList.remove('active');
+    }
+  }
+
+  isTravelSimulationRunning(): boolean {
+    return this.simRunning;
+  }
+
+  private getSimSpeed(): number {
+    switch (this.currentTransport) {
+      case 'Walking': return TRAVEL_SIM_WALKING_SPEED_MPS;
+      case 'Cycling': return TRAVEL_SIM_CYCLING_SPEED_MPS;
+      default: return TRAVEL_SIM_AUTOMOBILE_SPEED_MPS;
+    }
+  }
+
+  private simStep(now: number): void {
+    if (!this.simRunning || !this.routePoints || this.routePoints.length < 2) return;
+
+    const dt = Math.min((now - this.simLastFrameTime) / 1000, TRAVEL_SIM_MAX_DT);
+    this.simLastFrameTime = now;
+
+    let remainingDistance = this.getSimSpeed() * dt;
+
+    while (remainingDistance > 0 && this.simCurrentIndex < this.routePoints.length - 1) {
+      const segStart = this.routePoints[this.simCurrentIndex];
+      const segEnd = this.routePoints[this.simCurrentIndex + 1];
+      const segLen = this.haversineDistance(segStart, segEnd);
+
+      if (segLen < 0.01) {
+        this.simCurrentIndex++;
+        this.simSegmentProgress = 0;
+        continue;
+      }
+
+      const distFromCurrent = segLen * (1 - this.simSegmentProgress);
+
+      if (remainingDistance >= distFromCurrent) {
+        remainingDistance -= distFromCurrent;
+        this.simCurrentIndex++;
+        this.simSegmentProgress = 0;
+      } else {
+        this.simSegmentProgress += remainingDistance / segLen;
+        remainingDistance = 0;
+      }
+    }
+
+    let lat: number, lng: number;
+    if (this.simCurrentIndex < this.routePoints.length - 1) {
+      const segStart = this.routePoints[this.simCurrentIndex];
+      const segEnd = this.routePoints[this.simCurrentIndex + 1];
+      lat = segStart.lat + (segEnd.lat - segStart.lat) * this.simSegmentProgress;
+      lng = segStart.lng + (segEnd.lng - segStart.lng) * this.simSegmentProgress;
+    } else {
+      const last = this.routePoints[this.routePoints.length - 1];
+      lat = last.lat;
+      lng = last.lng;
+    }
+
+    this.updateRouteProgress({ lat, lng });
+    this.setCenter(lat, lng, false);
+
+    if (this.simCurrentIndex >= this.routePoints.length - 1) {
+      this.simCurrentIndex = 0;
+      this.simSegmentProgress = 0;
+      this.stopTravelSimulation();
+      return;
+    }
+
+    this.simAnimationId = requestAnimationFrame((t) => this.simStep(t));
   }
 
   destroy(): void {
